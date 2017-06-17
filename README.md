@@ -5,6 +5,8 @@ https://www.roe.ch/acefile
 
 ## Synopsis
 
+    pip install acefile
+
     # python library
     import acefile
     with acefile.open("example.ace") as f:
@@ -34,6 +36,11 @@ unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 ## Requirements
 
 Python 3.  No other dependencies.
+
+
+## Installation
+
+    pip install acefile
 
 
 ## Library usage
