@@ -1222,6 +1222,7 @@ class ACE:
         in blocks of undefined size upon availability.
         """
         self.__lz77.set_dicbits((params & 15) + 10)
+        self.__lz77.reinit()
         bs = BitStream(f, packsize)
         producedsize = 0
         while producedsize < filesize:
