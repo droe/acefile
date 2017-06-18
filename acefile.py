@@ -1789,11 +1789,27 @@ class AceFile:
             self.__file.close()
             self.__file = None
 
-    def getmember(self, name):
+    def _get_file_idx(self, member):
         """
-        Return an AceInfo object corresponding to archive member *name*.
-        Raise KeyError if *name* is not found in archive.
-        If the member name occurs multiple times, the last one is returned.
+        Return index into self.__file_headers and self.__file_aceinfos
+        corresponding to *member*, which can be an AceInfo object, a name
+        or an index into the archive member list.
+        """
+        if isinstance(member, int):
+            return member
+        elif isinstance(member, AceInfo):
+            return member._idx
+        elif isinstance(member, str):
+            return self._getmember_byname(member)._idx
+        else:
+            raise TypeError()
+
+    def _getmember_byname(self, name):
+        """
+        Return an AceInfo object corresponding to archive member name *name*.
+        Raise KeyError if *name* is not present in the archive.
+        If *name* occurs multiple times in the archive, then the last occurence
+        is returned.
         """
         match = None
         for ai in self.__file_aceinfos:
@@ -1802,6 +1818,24 @@ class AceFile:
         if match == None:
             raise KeyError()
         return match
+
+    def getmember(self, member):
+        """
+        Return an AceInfo object corresponding to archive member *member*.
+        Raise KeyError or IndexError if *member* is not found in archive.
+        *Member* can refer to an AceInfo object, a member name or an index
+        into the archive member list.
+        If *member* is a name and it occurs multiple times in the archive,
+        then the last member with matching filename is returned.
+        """
+        if isinstance(member, int):
+            return self.__file_aceinfos[member]
+        elif isinstance(member, AceInfo):
+            return self.__file_aceinfos[member._idx]
+        elif isinstance(member, str):
+            return self._getmember_byname(member)
+        else:
+            raise TypeError()
 
     def getmembers(self):
         """
@@ -1815,21 +1849,6 @@ class AceFile:
         Return a list of the names of all the members in the archive.
         """
         return [ai.filename for ai in self.__file_aceinfos]
-
-    def _get_file_idx(self, member):
-        """
-        Return index into self.__file_headers and self.__file_aceinfos
-        corresponding to *member*, which can be an AceInfo object, a name
-        or an index into the archive member list.
-        """
-        if isinstance(member, int):
-            return member
-        elif isinstance(member, str):
-            return self.getmember(member)._idx
-        elif isinstance(member, AceInfo):
-            return member._idx
-        else:
-            raise TypeError()
 
     def extract(self, member, path=None, pwd=None):
         """
@@ -2249,7 +2268,16 @@ def unace():
                 eprint(f.comment)
 
         if args.mode == 'extract':
-            f.extractall(path=args.basedir, members=args.file)
+            if args.verbose:
+                if args.file:
+                    members = [f.getmember(m) for m in args.file]
+                else:
+                    members = f.getmembers()
+                for ai in members:
+                    f.extract(ai, path=args.basedir)
+                    eprint("%s" % ai.filename)
+            else:
+                f.extractall(path=args.basedir, members=args.file)
 
         elif args.mode == 'list':
             if args.verbose:
