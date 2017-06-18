@@ -20,11 +20,8 @@ sign: $(SDISTSIG)
 $(SDISTSIG): $(SDIST)
 	$(GPG) -u $(GPGSIGNKEY) --detach-sign -a $(SDIST)
 
-#register: $(SDIST)
-#	twine register $(SDIST)
-
 upload: $(SDISTSIG)
-	twine upload $(SDIST) $(SDISTSIG)
+	$(TWINE) upload $(SDIST) $(SDISTSIG)
 
 clean:
 	find . -depth -name '__pycache__' -type d -exec rm -r '{}' \;
