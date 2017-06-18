@@ -338,13 +338,10 @@ class BitStream:
 
 class Huffman:
     """
-    Huffman decoder engine.
+    Huffman decoder engine.  All methods are static.
     """
     MAXWIDTHSVDWD       = 7
     MAXWIDTHTOSAVE      = 15
-
-    def __init__(self):
-        pass
 
     @staticmethod
     def _quicksort(keys, values, count):
@@ -388,12 +385,12 @@ class Huffman:
 
         _quicksort_subrange(0, count - 1)
 
-    # quasi-static
-    def _make_codes(self, max_width, count, widths, codes):
+    @staticmethod
+    def _make_codes(max_width, count, widths, codes):
         frequencies = list(widths)
         elements    = list(range(len(widths)))
 
-        self._quicksort(frequencies, elements, count)
+        Huffman._quicksort(frequencies, elements, count)
 
         actual_size = 0
         while actual_size < len(frequencies) and frequencies[actual_size] != 0:
@@ -420,8 +417,8 @@ class Huffman:
             code_pos += num_codes
             i -= 1
 
-    # quasi-static
-    def read_widths(self, bs, max_width, num_codes):
+    @staticmethod
+    def read_widths(bs, max_width, num_codes):
         """
         Read Huffman codes and their widths from BitStream *bs*.
         The caller specifies the maximum width of a single code *max_width*
@@ -439,7 +436,10 @@ class Huffman:
         save_widths = [0] * Huffman.MAXWIDTHTOSAVE
         for i in range(upper_width + 1):
             save_widths[i] = bs.read_bits(3)
-        self._make_codes(Huffman.MAXWIDTHSVDWD, upper_width + 1, save_widths, codes)
+        Huffman._make_codes(Huffman.MAXWIDTHSVDWD,
+                            upper_width + 1,
+                            save_widths,
+                            codes)
 
         width_pos = 0
         while width_pos < num_widths:
@@ -464,7 +464,7 @@ class Huffman:
             if widths[i] > 0:
                 widths[i] += lower_width
 
-        self._make_codes(max_width, num_widths, widths, codes)
+        Huffman._make_codes(max_width, num_widths, widths, codes)
         return (codes, widths)
 
 
@@ -566,7 +566,6 @@ class LZ77:
     NUMLENCODES         = 256 - 1
 
     def __init__(self):
-        self.__huff = Huffman()
         self.__dictionary = []
         self.__dicsize = 1 << LZ77.MINDICBITS
 
@@ -604,12 +603,12 @@ class LZ77:
 
     # quasi-static
     def _read_tabs(self, bs):
-        main_syms, main_widths = self.__huff.read_widths(bs,
-                                                         LZ77.MAXCODEWIDTH,
-                                                         LZ77.NUMMAINCODES)
-        len_syms,  len_widths  = self.__huff.read_widths(bs,
-                                                         LZ77.MAXCODEWIDTH,
-                                                         LZ77.NUMLENCODES)
+        main_syms, main_widths = Huffman.read_widths(bs,
+                                                     LZ77.MAXCODEWIDTH,
+                                                     LZ77.NUMMAINCODES)
+        len_syms,  len_widths  = Huffman.read_widths(bs,
+                                                     LZ77.MAXCODEWIDTH,
+                                                     LZ77.NUMLENCODES)
         block_size = bs.read_bits(15)
         return (block_size, main_syms, main_widths, len_syms, len_widths)
 
@@ -887,7 +886,6 @@ class Sound:
                            (1, 0, 2, 0))
 
     def __init__(self):
-        self.__huff = Huffman()
         self.quantizer = [None] * 256
         self.quantizer[0] = 0
         for i in range(1, 129):
@@ -910,8 +908,7 @@ class Sound:
     def _read_tabs(self, bs):
         for i in range(len(self.__huff_symbols)):
             self.__huff_symbols[i], self.__huff_widths[i] = \
-                    self.__huff.read_widths(bs, Sound.MAXCODEWIDTH,
-                                                Sound.NUMCODES)
+                    Huffman.read_widths(bs, Sound.MAXCODEWIDTH, Sound.NUMCODES)
         self.__blocksize = bs.read_bits(15)
 
     def _get_symbol(self, bs, model):
@@ -955,8 +952,6 @@ class Pic:
     S3                  = 21
 
     def __init__(self):
-        self.__huff = Huffman()
-
         self.__bit_width = [0] * LZ77.MAXDIST2
         self.__bit_width[0] = 0
         for i in range(1, LZ77.MAXDIST2):
@@ -1197,7 +1192,6 @@ class ACE:
             return '?'
 
     def __init__(self):
-        self.__huff = Huffman()
         self.__lz77 = LZ77()
         self.__sound = Sound()
         self.__pic = Pic()
