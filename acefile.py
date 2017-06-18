@@ -40,15 +40,15 @@ it is significantly slower than native implementations.
 
 This implementation supports up to version 2.0 of the ACE archive format,
 including the EXE, DIFF, PIC and SOUND modes of ACE 2.0.  Some ACE features
-are not fully implemented, most notably password protection, multivolume
-support and comments decompression.
+are not fully implemented, most notably password protection and multivolume
+support.
 
 This is an implementation from scratch, based on the 1998 document titled
 "Technical information of the archiver ACE v1.2" by Marcel Lemke, using
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 """
 
-__version__     = '0.2.2-dev'
+__version__     = '0.3.0-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017, Daniel Roethlisberger'
@@ -59,12 +59,13 @@ __url__         = 'https://www.roe.ch/acefile'
 __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 
 # TODO
-# -   Decompress comments
 # -   Password protection
+# -   Multivolume support
 # -   Seek into first N bytes of files as per specs
 # -   Look into performance bottlenecks
 
 import datetime
+import io
 import math
 import os
 import struct
@@ -2055,6 +2056,37 @@ class AceFile:
         """
         return self.__main_header.advert
 
+    @staticmethod
+    def _decompress_comment(buf):
+        """
+        Decompress an ACE MAIN or FILE comment.  These are compressed using
+        Huffman coding plus a simple copy mechanism.
+        """
+        bs = BitStream(io.BytesIO(buf), len(buf))
+        want_size = bs.read_bits(15)
+        huff_syms, huff_widths = Huffman.read_widths(bs,
+                                                     LZ77.MAXCODEWIDTH,
+                                                     LZ77.NUMMAINCODES)
+        comment = []
+        htab = [0] * 511
+        while len(comment) < want_size:
+            if len(comment) > 1:
+                hval = comment[-1] + comment[-2]
+                source_pos = htab[hval]
+                htab[hval] = len(comment)
+            else:
+                source_pos = 0
+
+            code = huff_syms[bs.peek_bits(LZ77.MAXCODEWIDTH)]
+            bs.skip_bits(huff_widths[code])
+
+            if code < 256:
+                comment.append(code)
+            else:
+                for i in range(code - 256 + 2):
+                    comment.append(comment[source_pos + i])
+        return bytes(comment)
+
     def _parse_headers(self):
         # This assumes no garbage before and after the archive
         self.__file.seek(0, 0)
@@ -2104,8 +2136,8 @@ class AceFile:
                 i += 2
                 if i + cmsz > len(buf):
                     raise CorruptedArchiveError()
-                # FIXME decompress comment
-                header.comment = buf[i:i+cmsz].decode('utf-8', errors='replace')
+                comment = self._decompress_comment(buf[i:i+cmsz])
+                header.comment = comment.decode('utf-8', errors='replace')
                 i += cmsz
             header.reserved2 = buf[i:]
             if self.__main_header != None:
@@ -2154,8 +2186,8 @@ class AceFile:
                 i += 2
                 if i + cmsz > len(buf):
                     raise CorruptedArchiveError()
-                # FIXME decompress comment
-                header.comment = buf[i:i+cmsz].decode('utf-8', errors='replace')
+                comment = self._decompress_comment(buf[i:i+cmsz])
+                header.comment = comment.decode('utf-8', errors='replace')
                 i += cmsz
             header.reserved2 = buf[i:]
             header.dataoffset = self.__file.tell()
@@ -2201,7 +2233,6 @@ open = AceFile.open
 
 def unace():
     import argparse
-    import io
 
     parser = argparse.ArgumentParser(description="""
             Read from ACE format archives in pure python.
@@ -2277,6 +2308,8 @@ def unace():
                 for ai in members:
                     f.extract(ai, path=args.basedir)
                     eprint("%s" % ai.filename)
+                    if ai.comment:
+                        eprint(ai.comment)
             else:
                 f.extractall(path=args.basedir, members=args.file)
 
@@ -2298,6 +2331,8 @@ def unace():
                         (100 * ai.packsize) // ai.size,
                         ai.mtime.strftime('%Y-%m-%d %H:%M:%S'),
                         ai.filename))
+                    if ai.comment:
+                        eprint(ai.comment)
                     count_size += ai.size
                     count_packsize += ai.packsize
                     count += 1
@@ -2310,13 +2345,15 @@ def unace():
         elif args.mode == 'test':
             failed = 0
             ok = 0
-            for member in f.getmembers():
-                if f.test(member):
-                    print("success  %s" % member.filename)
+            for ai in f.getmembers():
+                if f.test(ai):
+                    print("success  %s" % ai.filename)
                     ok += 1
                 else:
-                    print("failure  %s" % member.filename)
+                    print("failure  %s" % ai.filename)
                     failed += 1
+                if args.verbose and ai.comment:
+                    eprint(ai.comment)
             eprint("total %i tested, %i ok, %i failed" % (
                    ok + failed, ok, failed))
             if failed > 0:

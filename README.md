@@ -25,8 +25,8 @@ it is significantly slower than native implementations.
 
 This implementation supports up to version 2.0 of the ACE archive format,
 including the EXE, DIFF, PIC and SOUND modes of ACE 2.0.  Some ACE features
-are not fully implemented, most notably password protection, multivolume
-support and comments decompression.
+are not fully implemented, most notably password protection and multivolume
+support.
 
 This is an implementation from scratch, based on the 1998 document titled
 "Technical information of the archiver ACE v1.2" by Marcel Lemke, using
