@@ -48,7 +48,7 @@ This is an implementation from scratch, based on the 1998 document titled
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 """
 
-__version__     = '0.3.0'
+__version__     = '0.3.1-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017, Daniel Roethlisberger'
@@ -133,7 +133,7 @@ def classinit_crctab(cls):
     for i in range(256):
         hval = i
         for j in range(8):
-            if hval & 1 == 1:
+            if hval & 1:
                 hval = (hval >> 1) ^ 0xEDB88320
             else:
                 hval >>= 1
@@ -1629,18 +1629,41 @@ class FileHeader(Header):
 
 
 class AceError(Exception):
+    """
+    Base class for all acefile errors.
+    """
     pass
 
 class TruncatedArchiveError(AceError):
+    """
+    Archive is truncated.
+    """
     pass
 
 class CorruptedArchiveError(AceError):
+    """
+    Archive is corrupted.  Either a CRC check failed or an invalid value was
+    read from the archive.
+    """
     pass
 
-class UnknownAttributesError(AceError):
+class EncryptedArchiveError(AceError):
+    """
+    Archive member is encrypted but no password was provided.
+    """
     pass
+
+#class UnknownAttributesError(AceError):
+#    """
+#    The file contains unknown attributed.
+#    """
+#    pass
 
 class UnknownMethodError(AceError):
+    """
+    Data was compressed using an unknown compression method and therefore
+    cannot be decompressed.
+    """
     pass
 
 
