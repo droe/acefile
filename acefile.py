@@ -61,6 +61,7 @@ __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 # -   Multivolume support
 # -   Seek into first N bytes of files as per specs
 # -   Look into performance bottlenecks
+# -   Improve handling of archives with multiple different passwords in CLI
 
 import datetime
 import io
@@ -2358,7 +2359,7 @@ class AceFile:
         if members == None or members == []:
             members = self.__file_aceinfos
         else:
-            if self.__main_header.flag(Header.FLAG_SOLID):
+            if self.is_solid():
                 # ensure members subset is in order of appearance
                 sorted_members = []
                 for member in self.__file_aceinfos:
@@ -2400,8 +2401,7 @@ class AceFile:
         # Ensure the LZ77 state corresponds to the state after extracting the
         # previous file by re-starting extraction from the beginning or the
         # last extracted file.
-        if self.__main_header.flag(Header.FLAG_SOLID) and \
-                self.__next_read_idx != idx:
+        if self.is_solid() and self.__next_read_idx != idx:
             if self.__next_read_idx < idx:
                 restart_idx = self.__next_read_idx
             else:
@@ -2480,6 +2480,13 @@ class AceFile:
         """
         for h in self.__all_headers:
             print(h, file=file)
+
+    def is_solid(self):
+        """
+        Return True iff archive is a solid archive, i.e. iff the archive
+        members are linked to each other by sharing the same dictionary.
+        """
+        return self.__main_header.flag(Header.FLAG_SOLID)
 
     @property
     def filename(self):
@@ -2737,11 +2744,10 @@ def unace():
 
     # not implemented arguments that other unace implementations have:
     # --(no-)full-path              always full path extraction
-    # --(no-)show-comments          never show comments
+    # --(no-)show-comments          show comments iff verbose
     # --(no-)overwrite-files        always overwrite files
     # --(no-)full-path-matching     always full path matching
     # --exclude(-list)              feature not implemented
-    # --password                    feature not implemented
     # --yes                         not applicable
 
     args = parser.parse_args()
@@ -2776,13 +2782,25 @@ def unace():
                 else:
                     members = f.getmembers()
                 for ai in members:
-                    f.extract(ai, path=args.basedir, pwd=args.password)
-                    eprint("%s" % ai.filename)
+                    try:
+                        f.extract(ai, path=args.basedir, pwd=args.password)
+                        eprint("%s" % ai.filename)
+                    except EncryptedArchiveError:
+                        eprint("%s: need password to decrypt - skipped" % \
+                                ai.filename)
+                        if f.is_solid():
+                            eprint("%s: encrypted solid archive - quitting" % \
+                                    ai.filename)
+                            sys.exit(1)
                     if ai.comment:
                         eprint(ai.comment)
             else:
-                f.extractall(path=args.basedir, members=args.file,
-                                                pwd=args.password)
+                try:
+                    f.extractall(path=args.basedir, members=args.file,
+                                                    pwd=args.password)
+                except EncryptedArchiveError:
+                    eprint("need password to decrypt - quitting")
+                    sys.exit(1)
 
         elif args.mode == 'list':
             if args.verbose:
@@ -2825,11 +2843,15 @@ def unace():
             failed = 0
             ok = 0
             for ai in f.getmembers():
-                if f.test(ai, pwd=args.password):
-                    print("success  %s" % ai.filename)
-                    ok += 1
-                else:
-                    print("failure  %s" % ai.filename)
+                try:
+                    if f.test(ai, pwd=args.password):
+                        print("success  %s" % ai.filename)
+                        ok += 1
+                    else:
+                        print("failure  %s" % ai.filename)
+                        failed += 1
+                except EncryptedArchiveError:
+                    print("needpwd  %s" % ai.filename)
                     failed += 1
                 if args.verbose and ai.comment:
                     eprint(ai.comment)
