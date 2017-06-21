@@ -1,5 +1,5 @@
 
-### acefile 0.3.1-dev 2017-06-21
+### acefile 0.4.0 2017-06-21
 
 -   Add support for encrypted archives using 160-bit blowfish.
 -   Fix division by zero when using the CLI to list an archive containing
