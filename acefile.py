@@ -2795,11 +2795,19 @@ def unace():
                         t = 'd'
                     else:
                         t = '?'
-                    print("%s  %9i  %9i  %3i%%  %s  %s" % (
-                        t,
+                    if ai.is_enc():
+                        e = '+'
+                    else:
+                        e = ' '
+                    if ai.size > 0:
+                        ratio = (100 * ai.packsize) // ai.size
+                    else:
+                        ratio = 100
+                    print("%s%s %9i  %9i  %3i%%  %s  %s" % (
+                        t, e,
                         ai.size,
                         ai.packsize,
-                        (100 * ai.packsize) // ai.size,
+                        ratio,
                         ai.mtime.strftime('%Y-%m-%d %H:%M:%S'),
                         ai.filename))
                     if ai.comment:
