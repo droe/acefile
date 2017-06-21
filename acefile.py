@@ -2442,6 +2442,8 @@ class AceFile:
         """
         Read a file from the archive.  Returns False if any corruption was
         found, True if the header and decompression was okay.
+        Raises EncryptedArchiveError if the archive member is encrypted but
+        no password was provided.
         *Member* can refer to an AceInfo object, a member name or an index
         into the archive member list.
         Testing members in a different order than they appear in a solid
@@ -2455,6 +2457,8 @@ class AceFile:
             for buf in self.readblocks(ai, pwd=pwd):
                 pass
             return True
+        except EncryptedArchiveError:
+            raise
         except AceError:
             return False
 
@@ -2462,6 +2466,8 @@ class AceFile:
         """
         Read all the files in the archive.  Returns the name of the first file
         with a failing header or content CRC, or None if all files were okay.
+        Raises EncryptedArchiveError if an archive member is encrypted but no
+        password was provided.
         """
         for ai in self.__file_aceinfos:
             if not self.test(ai, pwd=pwd):
