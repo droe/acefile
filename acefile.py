@@ -2142,6 +2142,7 @@ class AceInfo:
         self.comptype       = filehdr.comptype
         self.compqual       = filehdr.compqual
         self.params         = filehdr.params
+        self.header         = filehdr
 
     def is_dir(self):
         """
@@ -2157,6 +2158,12 @@ class AceInfo:
         # is_dir() instead of checking for specific attribute bits.
         #return self.attribs & Header.ATTR_REG == Header.ATTR_REG
         return not self.is_dir()
+
+    def is_enc(self):
+        """
+        True iff AceInfo object refers to an encrypted archive member.
+        """
+        return self.header.flag(Header.FLAG_PASSWORD)
 
 
 
