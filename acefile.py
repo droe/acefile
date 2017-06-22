@@ -354,7 +354,7 @@ class BitStream:
 
 
 
-class EncryptedFile:
+class EncryptedFileIO:
     """
     File-like object that reads from a lower-level file-like object and
     transparently decrypts the data stream.
@@ -2434,7 +2434,7 @@ class AceFile:
             if hdr.flag(Header.FLAG_PASSWORD):
                 if not pwd:
                     raise EncryptedArchiveError()
-                f = EncryptedFile(self.__file, pwd)
+                f = EncryptedFileIO(self.__file, pwd)
             else:
                 f = self.__file
 
