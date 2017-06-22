@@ -58,8 +58,8 @@ __url__         = 'https://www.roe.ch/acefile'
 __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 
 # TODO
+# -   Optionally seek into first N bytes of files as per specs
 # -   Multivolume support
-# -   Seek into first N bytes of files as per specs
 # -   Look into performance bottlenecks
 # -   Improve handling of archives with multiple different passwords in CLI
 
@@ -2568,7 +2568,9 @@ class AceFile:
         return bytes(comment)
 
     def _parse_headers(self):
-        # This assumes no garbage before and after the archive
+        # This assumes no garbage before and after the archive;
+        # to support extraction of SFX archives, this should look
+        # for a main header in the first n bytes of the file.
         self.__file.seek(0, 0)
         while self.__file.tell() < self.__filesize:
             self._parse_header()
