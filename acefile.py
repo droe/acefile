@@ -115,7 +115,6 @@ def c_uchar(i):
     """
     return i & 0xFF
 
-# not in haklib.c
 def c_rot32(i, n):
     """
     Rotate *i* left by *n* bits within the uint32 value range.
@@ -127,6 +126,12 @@ def c_add32(a, b):
     Add *a* and *b* within the uint32 value range.
     """
     return (a + b) & 0xFFFFFFFF
+
+def c_sum32(*args):
+    """
+    Add all elements of *args* within the uint32 value range.
+    """
+    return sum(args) & 0xFFFFFFFF
 
 
 
@@ -645,7 +650,8 @@ class EncryptedFile:
 
     def _bf_init(self, key):
         """
-        Initialize blowfish state using 160-bit key *key*.
+        Initialize blowfish state using 160-bit key *key* as list or tuple of
+        integers.
         """
         self.__p = [self.BF_P[i] ^ key[i % len(key)] \
                 for i in list(range(len(self.BF_P)))]
@@ -666,14 +672,14 @@ class EncryptedFile:
 
     def _bf_func(self, x):
         """
-        The blowfish round function.
+        The blowfish round function operating on an integer.
         """
         h = c_add32(self.__s[0][x >> 24], self.__s[1][x >> 16 & 0xff])
         return c_add32((h ^ self.__s[2][x >> 8 & 0xff]), self.__s[3][x & 0xff])
 
     def _bf_encrypt_block(self, l, r):
         """
-        Encrypt a single block *l*, *r*.
+        Encrypt a single block consisting of integers *l* and *r*.
         """
         for i in range(0, 16, 2):
             l ^= self.__p[i]
@@ -686,7 +692,7 @@ class EncryptedFile:
 
     def _bf_decrypt_block(self, l, r):
         """
-        Decrypt a single block *l*, *r*.
+        Decrypt a single block consisting of integers *l* and *r*.
         """
         for i in range(16, 0, -2):
             l ^= self.__p[i+1]
@@ -716,7 +722,7 @@ class EncryptedFile:
     def _derive_key(self, pwd):
         """
         Derive the decryption key from password bytes *pwd* using a single
-        round of SHA-1 using non-standard padding.
+        application of SHA-1 using non-standard padding.
         """
         buf = pwd + bytes([0x80] + [0] * (64 - len(pwd) - 5))
         state = []
@@ -733,25 +739,25 @@ class EncryptedFile:
         e = self.SHA1_E
         for i in range(20):
             a, b, c, d, e = \
-                (c_rot32(a, 5) + ((b&c)|(~b&d))      + e + state[i] \
-                    + 0x5a827999) & 0xFFFFFFFF, a, c_rot32(b, 30), c, d
+                c_sum32(c_rot32(a, 5), ((b&c)|(~b&d)), e, state[i],
+                        0x5a827999), a, c_rot32(b, 30), c, d
         for i in range(20, 40):
             a, b, c, d, e = \
-                (c_rot32(a, 5) + (b^c^d)             + e + state[i] \
-                    + 0x6ed9eba1) & 0xFFFFFFFF, a, c_rot32(b, 30), c, d
+                c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
+                        0x6ed9eba1), a, c_rot32(b, 30), c, d
         for i in range(40, 60):
             a, b, c, d, e = \
-                (c_rot32(a, 5) + ((b&c)|(b&d)|(c&d)) + e + state[i] \
-                    + 0x8f1bbcdc) & 0xFFFFFFFF, a, c_rot32(b, 30), c, d
+                c_sum32(c_rot32(a, 5), ((b&c)|(b&d)|(c&d)), e, state[i],
+                        0x8f1bbcdc), a, c_rot32(b, 30), c, d
         for i in range(60, 80):
             a, b, c, d, e = \
-                (c_rot32(a, 5) + (b^c^d)             + e + state[i] \
-                    + 0xca62c1d6) & 0xFFFFFFFF, a, c_rot32(b, 30), c, d
-        a = (a + self.SHA1_A) & 0xFFFFFFFF
-        b = (b + self.SHA1_B) & 0xFFFFFFFF
-        c = (c + self.SHA1_C) & 0xFFFFFFFF
-        d = (d + self.SHA1_D) & 0xFFFFFFFF
-        e = (e + self.SHA1_E) & 0xFFFFFFFF
+                c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
+                        0xca62c1d6), a, c_rot32(b, 30), c, d
+        a = c_add32(a, self.SHA1_A)
+        b = c_add32(b, self.SHA1_B)
+        c = c_add32(c, self.SHA1_C)
+        d = c_add32(d, self.SHA1_D)
+        e = c_add32(e, self.SHA1_E)
         return (a, b, c, d, e)
 
     def read(self, n):
