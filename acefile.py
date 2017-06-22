@@ -2409,9 +2409,9 @@ class AceFile:
         ai = self.__file_aceinfos[idx]
         hdr = self.__file_headers[idx]
 
-        # Ensure the LZ77 state corresponds to the state after extracting the
-        # previous file by re-starting extraction from the beginning or the
-        # last extracted file.
+        # For solid archives, ensure the LZ77 state corresponds to the state
+        # after extracting the previous file by re-starting extraction from
+        # the beginning or the last extracted file.
         if self.is_solid() and self.__next_read_idx != idx:
             if self.__next_read_idx < idx:
                 restart_idx = self.__next_read_idx
