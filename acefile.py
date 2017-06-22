@@ -47,7 +47,7 @@ This is an implementation from scratch, based on the 1998 document titled
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 """
 
-__version__     = '0.4.0'
+__version__     = '0.4.1-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017, Daniel Roethlisberger'
@@ -633,9 +633,14 @@ class EncryptedFile:
         0xB74E6132, 0xCE77E25B, 0x578FDFE3, 0x3AC372E6)
 
     def __init__(self, f, pwd):
+        """
+        Wrap file-like object *f*, decrypting using password *pwd*, which can
+        be str or bytes.
+        """
+        if isinstance(pwd, str):
+            pwd = pwd.encode('utf-8')
         self.__file = f
-        key = self._derive_key(pwd.encode('utf-8'))
-        self._bf_init(key)
+        self._bf_init(self._derive_key(pwd))
         self.__buffer = b''
 
     def _bf_init(self, key):

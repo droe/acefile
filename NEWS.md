@@ -1,4 +1,9 @@
 
+### acefile 0.4.1-dev 2017-06-22
+
+-   Allow passwords to be specified as str or bytes, not only str.
+
+
 ### acefile 0.4.0 2017-06-21
 
 -   Add support for encrypted archives using 160-bit blowfish.
