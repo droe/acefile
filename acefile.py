@@ -2743,7 +2743,7 @@ def unace():
             help='test archive integrity')
     group.add_argument('--headers',
             action='store_const', dest='mode', const='headers',
-            help='implementation selftest')
+            help='dump archive headers')
     group.add_argument('--selftest',
             action='store_const', dest='mode', const='selftest',
             help='implementation selftest')
