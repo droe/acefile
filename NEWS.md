@@ -1,5 +1,5 @@
 
-### acefile 0.4.1-dev
+### acefile 0.4.1 2017-06-24
 
 -   Allow passwords to be specified as str or bytes, not only str.
 
