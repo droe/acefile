@@ -1,6 +1,8 @@
 
 ### acefile 0.4.2-dev
 
+-   Decode all currently known NT file attributes.
+
 
 ### acefile 0.4.1 2017-06-24
 

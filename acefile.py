@@ -1900,10 +1900,33 @@ class Header:
     QUAL_BEST           = 5
     QUAL_STRINGS        = ('store', 'fastest', 'fast', 'normal', 'good', 'best')
 
-    # only ATTR_DIR seems to be reliable; are the semantics platform-dependent?
-    ATTR_DIR            = 0x00000010
-    ATTR_REG            = 0x00000020
-    ATTR_STRINGS        = ('1', '2', '4', '8', 'DIR', 'REG')
+    # winnt.h
+    ATTR_READONLY               = 0x00000001
+    ATTR_HIDDEN                 = 0x00000002
+    ATTR_SYSTEM                 = 0x00000004
+    ATTR_VOLUME_ID              = 0x00000008
+    ATTR_DIRECTORY              = 0x00000010
+    ATTR_ARCHIVE                = 0x00000020
+    ATTR_DEVICE                 = 0x00000040
+    ATTR_NORMAL                 = 0x00000080
+    ATTR_TEMPORARY              = 0x00000100
+    ATTR_SPARSE_FILE            = 0x00000200
+    ATTR_REPARSE_POINT          = 0x00000400
+    ATTR_COMPRESSED             = 0x00000800
+    ATTR_OFFLINE                = 0x00001000
+    ATTR_NOT_CONTENT_INDEXED    = 0x00002000
+    ATTR_ENCRYPTED              = 0x00004000
+    ATTR_INTEGRITY_STREAM       = 0x00008000
+    ATTR_VIRTUAL                = 0x00010000
+    ATTR_NO_SCRUB_DATA          = 0x00020000
+    ATTR_EA                     = 0x00040000
+    ATTR_STRINGS                = ('READONLY', 'HIDDEN', 'SYSTEM', 'VOLUME_ID',
+                                   'DIRECTORY', 'ARCHIVE', 'DEVICE', 'NORMAL',
+                                   'TEMPORARY', 'SPARSE_FILE',
+                                   'REPARSE_POINT', 'COMPRESSED',
+                                   'OFFLINE', 'NOT_CONTENT_INDEXED',
+                                   'ENCRYPTED', 'INTEGRITY_STREAM',
+                                   'VIRTUAL', 'NO_SCRUB_DATA', 'EA')
 
     @staticmethod
     def _format_bitfield(strings, field):
@@ -2101,12 +2124,6 @@ class EncryptedArchiveError(AceError):
     """
     pass
 
-#class UnknownAttributesError(AceError):
-#    """
-#    The file contains unknown attributed.
-#    """
-#    pass
-
 class UnknownMethodError(AceError):
     """
     Data was compressed using an unknown compression method and therefore
@@ -2165,15 +2182,12 @@ class AceInfo:
         """
         True iff AceInfo object refers to a directory.
         """
-        return self.attribs & Header.ATTR_DIR == Header.ATTR_DIR
+        return self.attribs & Header.ATTR_DIRECTORY != 0
 
     def is_reg(self):
         """
         True iff AceInfo object refers to a regular file.
         """
-        # ATTR_REG seems to be unreliable, so for now, we're just inverting
-        # is_dir() instead of checking for specific attribute bits.
-        #return self.attribs & Header.ATTR_REG == Header.ATTR_REG
         return not self.is_dir()
 
     def is_enc(self):
@@ -2349,13 +2363,11 @@ class AceFile:
             fn = os.path.join(path, ai.filename)
         else:
             fn = ai.filename
-        if hdr.attrib(Header.ATTR_DIR):
+        if hdr.attrib(Header.ATTR_DIRECTORY):
             try:
                 os.mkdir(fn)
             except FileExistsError:
                 pass
-        # ATTR_REG is unreliable
-        #elif hdr.attrib(Header.ATTR_REG):
         else:
             basedir = os.path.dirname(fn)
             if basedir != '':
@@ -2363,8 +2375,6 @@ class AceFile:
             with builtin_open(fn, 'wb') as f:
                 for buf in self.readblocks(ai, pwd=pwd):
                     f.write(buf)
-        #else:
-        #    raise UnknownAttributesError()
 
     def extractall(self, path=None, members=None, pwd=None):
         """
@@ -2426,7 +2436,7 @@ class AceFile:
                 if not self.test(self.__file_aceinfos[i]):
                     raise CorruptedArchiveError()
 
-        if (not hdr.attrib(Header.ATTR_DIR)) and hdr.origsize > 0:
+        if (not hdr.attrib(Header.ATTR_DIRECTORY)) and hdr.origsize > 0:
             if hdr.comptype == Header.COMP_STORE:
                 decompressor = self.__ace.decompress_stored
             elif hdr.comptype == Header.COMP_LZ77:
