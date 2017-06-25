@@ -2,6 +2,7 @@
 ### acefile 0.4.2-dev
 
 -   Decode all currently known NT file attributes.
+-   Avoid rare IndexError when decompressing malformed archives.
 
 
 ### acefile 0.4.1 2017-06-24

@@ -881,7 +881,7 @@ class Huffman:
         lower_width = bs.read_bits(4)
         upper_width = bs.read_bits(4)
 
-        save_widths = [0] * Huffman.MAXWIDTHTOSAVE
+        save_widths = [0] * (Huffman.MAXWIDTHTOSAVE + 1)
         for i in range(upper_width + 1):
             save_widths[i] = bs.read_bits(3)
         Huffman._make_codes(Huffman.MAXWIDTHSVDWD,
