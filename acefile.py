@@ -47,7 +47,7 @@ This is an implementation from scratch, based on the 1998 document titled
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 """
 
-__version__     = '0.4.1'
+__version__     = '0.4.2-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017, Daniel Roethlisberger'
