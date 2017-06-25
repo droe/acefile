@@ -356,8 +356,8 @@ class BitStream:
 
 class EncryptedFileIO:
     """
-    File-like object that reads from a lower-level file-like object and
-    transparently decrypts the data stream.
+    Non-seekable file-like object that reads from a lower-level file-like
+    object and transparently decrypts the data stream.
     """
 
     SHA1_A = 0x67452301
@@ -640,7 +640,8 @@ class EncryptedFileIO:
     def __init__(self, f, pwd):
         """
         Wrap file-like object *f*, decrypting using password *pwd*, which can
-        be str or bytes.
+        be str or bytes.  File-like object *f* is expected to be at the correct
+        position; this class will only use the read() method on *f*.
         """
         if isinstance(pwd, str):
             pwd = pwd.encode('utf-8')
@@ -759,6 +760,9 @@ class EncryptedFileIO:
         d = c_add32(d, self.SHA1_D)
         e = c_add32(e, self.SHA1_E)
         return (a, b, c, d, e)
+
+    def seekable():
+        return False
 
     def read(self, n):
         """
@@ -2431,6 +2435,7 @@ class AceFile:
             else:
                 raise UnknownMethodError()
 
+            self.__file.seek(hdr.dataoffset, 0)
             if hdr.flag(Header.FLAG_PASSWORD):
                 if not pwd:
                     raise EncryptedArchiveError()
@@ -2439,7 +2444,6 @@ class AceFile:
                 f = self.__file
 
             crc = AceCRC32()
-            self.__file.seek(hdr.dataoffset, 0)
             for block in decompressor(f, hdr.packsize, hdr.origsize,
                                       hdr.params):
                 crc += block
