@@ -2836,9 +2836,9 @@ def unace():
                             eprint("%s" % ai.filename)
                         break
                     except EncryptedArchiveError:
-                        if args.verbose or args.yes:
+                        if args.verbose or args.yes or not password:
                             eprint("%s failed to decrypt" % ai.filename)
-                        if args.yes:
+                        if args.yes or not password:
                             failed += 1
                             break
                         try:
@@ -2905,6 +2905,10 @@ def unace():
             ok = 0
             password = args.password
             for ai in f.getmembers():
+                if f.is_solid() and failed > 0:
+                    print("needpwd  %s" % ai.filename)
+                    failed += 1
+                    continue
                 if ai.is_enc() and password == None and not args.yes:
                     try:
                         password = getpass.getpass("%s password: " % \
@@ -2921,22 +2925,21 @@ def unace():
                             failed += 1
                         break
                     except EncryptedArchiveError:
-                        if args.yes or (f.is_solid() and failed > 0):
+                        if args.yes or not password:
                             print("needpwd  %s" % ai.filename)
                             failed += 1
                             break
-                        else:
-                            eprint("last used password failed")
-                            try:
-                                password = getpass.getpass("%s password: " % \
-                                                            ai.filename)
-                            except EOFError:
-                                password = ''
-                            if password == '':
-                                password = args.password
-                                print("needpwd  %s" % ai.filename)
-                                failed += 1
-                                break
+                        eprint("last used password failed")
+                        try:
+                            password = getpass.getpass("%s password: " % \
+                                                        ai.filename)
+                        except EOFError:
+                            password = ''
+                        if password == '':
+                            password = args.password
+                            print("needpwd  %s" % ai.filename)
+                            failed += 1
+                            break
                 if args.verbose and ai.comment:
                     eprint(ai.comment)
             eprint("total %i tested, %i ok, %i failed" % (
