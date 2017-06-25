@@ -2096,7 +2096,8 @@ class CorruptedArchiveError(AceError):
 
 class EncryptedArchiveError(AceError):
     """
-    Archive member is encrypted but no password was provided.
+    Archive member is encrypted but eith no password was provided, or
+    decompression failed with the given password.
     """
     pass
 
@@ -2444,11 +2445,18 @@ class AceFile:
                 f = self.__file
 
             crc = AceCRC32()
-            for block in decompressor(f, hdr.packsize, hdr.origsize,
-                                      hdr.params):
-                crc += block
-                yield block
+            try:
+                for block in decompressor(f, hdr.packsize, hdr.origsize,
+                                          hdr.params):
+                    crc += block
+                    yield block
+            except CorruptedArchiveError:
+                if hdr.flag(Header.FLAG_PASSWORD):
+                    raise EncryptedArchiveError()
+                raise
             if crc != hdr.crc32:
+                if hdr.flag(Header.FLAG_PASSWORD):
+                    raise EncryptedArchiveError()
                 raise CorruptedArchiveError()
 
         self.__next_read_idx += 1
