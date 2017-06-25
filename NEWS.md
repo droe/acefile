@@ -2,6 +2,7 @@
 ### acefile 0.4.2-dev
 
 -   Decode all currently known NT file attributes.
+-   Handle archives with multiple different passwords gracefully in CLI.
 -   Avoid rare IndexError when decompressing malformed archives.
 
 

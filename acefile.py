@@ -61,7 +61,7 @@ __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 # -   Optionally seek into first N bytes of files as per specs
 # -   Multivolume support
 # -   Look into performance bottlenecks
-# -   Improve handling of archives with multiple different passwords in CLI
+# -   Print comments within an ASCII box
 
 import datetime
 import io
@@ -2119,8 +2119,11 @@ class CorruptedArchiveError(AceError):
 
 class EncryptedArchiveError(AceError):
     """
-    Archive member is encrypted but eith no password was provided, or
+    Archive member is encrypted but either no password was provided, or
     decompression failed with the given password.
+    Also raised when processing an encrypted solid archive member out of order,
+    when any previous archive member uses a different password than the archive
+    member currently being accessed.
     """
     pass
 
@@ -2743,6 +2746,7 @@ open = AceFile.open
 
 def unace():
     import argparse
+    import getpass
 
     parser = argparse.ArgumentParser(description="""
             Read from ACE format archives in pure python.
@@ -2774,6 +2778,8 @@ def unace():
             help='base directory for extraction')
     parser.add_argument('--password', '-p', type=str,
             help='password for decryption')
+    parser.add_argument('-y', '--yes', action='store_true',
+            help='assume yes to all questions')
     parser.add_argument('-v', '--verbose', action='store_true',
             help='be more verbose')
 
@@ -2783,12 +2789,11 @@ def unace():
     # --(no-)overwrite-files        always overwrite files
     # --(no-)full-path-matching     always full path matching
     # --exclude(-list)              feature not implemented
-    # --yes                         not applicable
 
     args = parser.parse_args()
 
-    if args.mode == 'list' and len(args.file) > 0:
-        eprint("%s: error: cannot list only a subset of files in archive" %
+    if args.mode != 'extract' and len(args.file) > 0:
+        eprint("%s: error: not extracting, but files were specified" %
                os.path.basename(sys.argv[0]))
         sys.exit(1)
 
@@ -2811,31 +2816,52 @@ def unace():
                 eprint(f.comment)
 
         if args.mode == 'extract':
-            if args.verbose:
-                if args.file:
-                    members = [f.getmember(m) for m in args.file]
-                else:
-                    members = f.getmembers()
-                for ai in members:
-                    try:
-                        f.extract(ai, path=args.basedir, pwd=args.password)
-                        eprint("%s" % ai.filename)
-                    except EncryptedArchiveError:
-                        eprint("%s: need password to decrypt - skipped" % \
-                                ai.filename)
-                        if f.is_solid():
-                            eprint("%s: encrypted solid archive - quitting" % \
-                                    ai.filename)
-                            sys.exit(1)
-                    if ai.comment:
-                        eprint(ai.comment)
+            failed = 0
+            password = args.password
+            if args.file:
+                members = [f.getmember(m) for m in args.file]
             else:
-                try:
-                    f.extractall(path=args.basedir, members=args.file,
-                                                    pwd=args.password)
-                except EncryptedArchiveError:
-                    eprint("need password to decrypt - quitting")
+                members = f.getmembers()
+            for ai in members:
+                if ai.is_enc() and password == None and not args.yes:
+                    try:
+                        password = getpass.getpass("%s password: " % \
+                                                    ai.filename)
+                    except EOFError:
+                        password = None
+                while True:
+                    try:
+                        f.extract(ai, path=args.basedir, pwd=password)
+                        if args.verbose:
+                            eprint("%s" % ai.filename)
+                        break
+                    except EncryptedArchiveError:
+                        if args.verbose or args.yes:
+                            eprint("%s failed to decrypt" % ai.filename)
+                        if args.yes:
+                            failed += 1
+                            break
+                        try:
+                            password = getpass.getpass("%s password: " % \
+                                                        ai.filename)
+                        except EOFError:
+                            password = ''
+                        if password == '':
+                            password = args.password
+                            eprint("%s skipped" % ai.filename)
+                            failed += 1
+                            break
+                    except AceError:
+                        eprint("%s failed to extract" % ai.filename)
+                        failed += 1
+                        break
+                if f.is_solid() and failed > 0:
+                    eprint("error extracting from solid archive, aborting")
                     sys.exit(1)
+                if args.verbose and ai.comment:
+                    eprint(ai.comment)
+            if failed > 0:
+                sys.exit(1)
 
         elif args.mode == 'list':
             if args.verbose:
@@ -2877,17 +2903,40 @@ def unace():
         elif args.mode == 'test':
             failed = 0
             ok = 0
+            password = args.password
             for ai in f.getmembers():
-                try:
-                    if f.test(ai, pwd=args.password):
-                        print("success  %s" % ai.filename)
-                        ok += 1
-                    else:
-                        print("failure  %s" % ai.filename)
-                        failed += 1
-                except EncryptedArchiveError:
-                    print("needpwd  %s" % ai.filename)
-                    failed += 1
+                if ai.is_enc() and password == None and not args.yes:
+                    try:
+                        password = getpass.getpass("%s password: " % \
+                                                    ai.filename)
+                    except EOFError:
+                        password = None
+                while True:
+                    try:
+                        if f.test(ai, pwd=password):
+                            print("success  %s" % ai.filename)
+                            ok += 1
+                        else:
+                            print("failure  %s" % ai.filename)
+                            failed += 1
+                        break
+                    except EncryptedArchiveError:
+                        if args.yes or (f.is_solid() and failed > 0):
+                            print("needpwd  %s" % ai.filename)
+                            failed += 1
+                            break
+                        else:
+                            eprint("last used password failed")
+                            try:
+                                password = getpass.getpass("%s password: " % \
+                                                            ai.filename)
+                            except EOFError:
+                                password = ''
+                            if password == '':
+                                password = args.password
+                                print("needpwd  %s" % ai.filename)
+                                failed += 1
+                                break
                 if args.verbose and ai.comment:
                     eprint(ai.comment)
             eprint("total %i tested, %i ok, %i failed" % (
