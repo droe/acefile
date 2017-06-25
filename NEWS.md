@@ -4,7 +4,7 @@
 -   Decode all currently known NT file attributes.
 -   Avoid rare IndexError when decompressing malformed archives.
 -   Handle archives with multiple different passwords gracefully in CLI.
--   Print archives in ASCII box with a title to improve clarity in CLI.
+-   Print comments in ASCII box with a title to improve clarity in CLI.
 
 
 ### acefile 0.4.1 2017-06-24
