@@ -61,7 +61,6 @@ __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 # -   Optionally seek into first N bytes of files as per specs
 # -   Multivolume support
 # -   Look into performance bottlenecks
-# -   Print comments within an ASCII box
 
 import datetime
 import io
@@ -132,6 +131,35 @@ def c_sum32(*args):
     Add all elements of *args* within the uint32 value range.
     """
     return sum(args) & 0xFFFFFFFF
+
+
+
+def asciibox(msg, title=None, minwidth=None):
+    """
+    Returns message string *msg* wrapped in a plain ASCII box.
+    If *width* is given, pad the lines to *width* characters.
+    If *title* is given, add *title* in the top horizontal bar.
+    """
+    out = []
+    lines = msg.splitlines()
+    width = 0
+    for line in lines:
+        width = max(width, len(line))
+    if minwidth != None:
+        width = max(width, minwidth)
+    if title != None:
+        width = max(width, len(title) + 6)
+    ftr = "+" + ("-" * (width + 2)) + "+"
+    if title != None:
+        hdr = ("+--[ %s ]--" % title) + ("-" * (width - 6 - len(title))) + "+"
+    else:
+        hdr = ftr
+    fmt = "| %%-%is |" % width
+    out.append(hdr)
+    for line in msg.splitlines():
+        out.append(fmt % line)
+    out.append(ftr)
+    return '\n'.join(out)
 
 
 
@@ -2813,7 +2841,7 @@ def unace():
             if f.advert:
                 eprint("by %s" % f.advert)
             if f.comment:
-                eprint(f.comment)
+                eprint(asciibox(f.comment, title='archive comment'))
 
         if args.mode == 'extract':
             failed = 0
@@ -2859,7 +2887,7 @@ def unace():
                     eprint("error extracting from solid archive, aborting")
                     sys.exit(1)
                 if args.verbose and ai.comment:
-                    eprint(ai.comment)
+                    eprint(asciibox(ai.comment, title='file comment'))
             if failed > 0:
                 sys.exit(1)
 
@@ -2890,7 +2918,7 @@ def unace():
                         ai.mtime.strftime('%Y-%m-%d %H:%M:%S'),
                         ai.filename))
                     if ai.comment:
-                        eprint(ai.comment)
+                        eprint(asciibox(ai.comment, title='file comment'))
                     count_size += ai.size
                     count_packsize += ai.packsize
                     count += 1
@@ -2941,7 +2969,7 @@ def unace():
                             failed += 1
                             break
                 if args.verbose and ai.comment:
-                    eprint(ai.comment)
+                    eprint(asciibox(ai.comment, title='file comment'))
             eprint("total %i tested, %i ok, %i failed" % (
                    ok + failed, ok, failed))
             if failed > 0:
