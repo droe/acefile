@@ -1365,7 +1365,7 @@ class Sound:
         self.quantizer = [None] * 256
         self.quantizer[0] = 0
         for i in range(1, 129):
-            self.quantizer[256 - i] = self.quantizer[i] = int(math.log2(i)) + 1
+            self.quantizer[256 - i] = self.quantizer[i] = i.bit_length()
         self.__channels = [self.Channel(self, i) for i in range(Sound.MAXCHANNELS)]
 
     def reinit(self, mode):
@@ -1428,15 +1428,11 @@ class Pic:
     S3                  = 21
 
     def __init__(self):
-        self.__bit_width = [0] * LZ77.MAXDIST2
-        self.__bit_width[0] = 0
-        for i in range(1, LZ77.MAXDIST2):
-            self.__bit_width[i] = int(math.log2(i)) + 1
         self.__dif_bit_width = [0] * 256
         for i in range(0, 128):
-            self.__dif_bit_width[i] = self.__bit_width[2 * i]
+            self.__dif_bit_width[i] = (2 * i).bit_length()
         for i in range(-128, 0):
-            self.__dif_bit_width[i] = self.__bit_width[- 2 * i - 1]
+            self.__dif_bit_width[i] = (- 2 * i - 1).bit_length()
 
         self.__quantizer   = [0] * 511
         self.__quantizer9  = [0] * 511
@@ -1556,7 +1552,7 @@ class Pic:
         context.used_counter += 1
 
         r = c_div(context.average_counter, context.used_counter)
-        epsilon = bs.golomb_rice(self.__bit_width[r], signed=True)
+        epsilon = bs.golomb_rice(r.bit_length(), signed=True)
         predicted = self._predict(context.predictor_number)
         pixel_x = c_uchar(predicted + epsilon)
 
