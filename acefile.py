@@ -60,8 +60,8 @@ __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 # TODO
 # -   Optionally seek into first N bytes of files as per specs
 # -   Multivolume support
-# -   Look into performance bottlenecks
 
+import array
 import datetime
 import io
 import math
@@ -274,11 +274,11 @@ class BitStream:
     def _getbits(value, start, length):
         """
         Return *length* bits from byte *value*, starting at position *start*.
-        Behaviour is undefined for start < 0, length < 0 or start + length > 8.
+        Behaviour is undefined for start < 0, length < 0 or start + length > 32.
         """
-        #assert start >= 0 and length >= 0 and start + length <= 8
-        mask = ((0xFF << (8 - length)) & 0xFF) >> start
-        return (value & mask) >> (8 - length - start)
+        #assert start >= 0 and length >= 0 and start + length <= 32
+        mask = ((0xFFFFFFFF << (32 - length)) & 0xFFFFFFFF) >> start
+        return (value & mask) >> (32 - length - start)
 
     def __init__(self, f, size):
         """
@@ -288,7 +288,7 @@ class BitStream:
         assert size % 4 == 0
         self.__file = f
         self.__file_remaining = size    # in bytes
-        self.__buf = []
+        self.__buf = array.array('I')
         self.__len = 0                  # in bits
         self.__pos = 0                  # in bits
         self._refill()
@@ -306,18 +306,15 @@ class BitStream:
             raise self.Depleted()
         self.__file_remaining -= len(tmpbuf)
 
-        newbuf = self.__buf[-4:]
+        newbuf = self.__buf[-1:]
         for i in range(0, len(tmpbuf), 4):
-            newbuf.append(tmpbuf[i+3])
-            newbuf.append(tmpbuf[i+2])
-            newbuf.append(tmpbuf[i+1])
-            newbuf.append(tmpbuf[i])
+            newbuf.append(struct.unpack('<L', tmpbuf[i:i+4])[0])
         if len(tmpbuf) < FILE_BLOCKSIZE:
-            newbuf.extend([0] * 4)
+            newbuf.append(0)
         if self.__pos > 0:
             self.__pos -= (self.__len - 32)
         self.__buf = newbuf
-        self.__len = 8 * len(newbuf)
+        self.__len = 32 * len(newbuf)
 
     def _have_bits(self, bits):
         """
@@ -339,16 +336,16 @@ class BitStream:
         Peek at next *bits* bits in the stream without incrementing position.
         """
         self._have_bits(bits)
-        peeked = min(bits, 8 - (self.__pos % 8))
-        res = self._getbits(self.__buf[self.__pos // 8],
-                            self.__pos % 8, peeked)
-        while bits - peeked >= 8:
-            res <<= 8
-            res += self.__buf[(self.__pos + peeked) // 8]
-            peeked += 8
+        peeked = min(bits, 32 - (self.__pos % 32))
+        res = self._getbits(self.__buf[self.__pos // 32],
+                            self.__pos % 32, peeked)
+        while bits - peeked >= 32:
+            res <<= 32
+            res += self.__buf[(self.__pos + peeked) // 32]
+            peeked += 32
         if bits - peeked > 0:
             res <<= bits - peeked
-            res += self._getbits(self.__buf[(self.__pos + peeked) // 8],
+            res += self._getbits(self.__buf[(self.__pos + peeked) // 32],
                                  0, bits - peeked)
         return res
 
