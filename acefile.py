@@ -302,7 +302,8 @@ class BitStream:
 
         amount = min(self.__file_remaining, FILE_BLOCKSIZE)
         tmpbuf = self.__file.read(amount)
-        assert len(tmpbuf) == amount
+        if len(tmpbuf) < amount:
+            raise self.Depleted()
         self.__file_remaining -= len(tmpbuf)
 
         newbuf = self.__buf[-4:]
@@ -1433,7 +1434,6 @@ class Pic:
             self.__dif_bit_width[i] = (2 * i).bit_length()
         for i in range(-128, 0):
             self.__dif_bit_width[i] = (- 2 * i - 1).bit_length()
-
         self.__quantizer   = [0] * 511
         self.__quantizer9  = [0] * 511
         self.__quantizer81 = [0] * 511
