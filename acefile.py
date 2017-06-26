@@ -2930,7 +2930,7 @@ def unace():
             password = args.password
             for ai in f.getmembers():
                 if f.is_solid() and failed > 0:
-                    print("needpwd  %s" % ai.filename)
+                    print("failure  %s" % ai.filename)
                     failed += 1
                     continue
                 if ai.is_enc() and password == None and not args.yes:
