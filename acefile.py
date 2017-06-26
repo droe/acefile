@@ -203,7 +203,7 @@ class AceCRC32:
         if len(buf) > 0:
             self += buf
 
-    def __add__(self, buf):
+    def __iadd__(self, buf):
         """
         Adding a buffer of bytes into the checksum, updating the rolling
         checksum from all previously added buffers.
