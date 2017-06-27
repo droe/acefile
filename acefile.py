@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # vim: set list et ts=8 sts=4 sw=4 ft=python:
 
-# acefile - read from ACE format archives in pure python
+# acefile - read/test/extract ACE 1.0 and 2.0 archives in pure python
 # Copyright (C) 2017, Daniel Roethlisberger <daniel@roe.ch>
 # All rights reserved.
 #
@@ -31,7 +31,7 @@
 # over ACE technology beyond the copyright of this python implementation.
 
 """
-Read from ACE format archives in pure python.
+Read/test/extract ACE 1.0 and 2.0 archives in pure python.
 
 This single-file, pure-python, no-dependencies python 3 implementation is
 designed to be used both as a library and as a stand-alone unace utility.

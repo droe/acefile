@@ -1,4 +1,4 @@
-# acefile - read from ACE format archives in pure python
+# acefile - read/test/extract ACE 1.0 and 2.0 archives in pure python
 Copyright (C) 2017, [Daniel Roethlisberger](//daniel.roe.ch/).  
 https://www.roe.ch/acefile
 
