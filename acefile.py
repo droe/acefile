@@ -2640,26 +2640,23 @@ class AceFile:
         """
         self.__file.seek(0, 0)
         buf = self.__file.read(512)
-        if search == 0:
-            if buf[7:14] != MainHeader.MAGIC:
-                raise MainHeaderNotFoundError()
-            magicpos = 7
-            self.__file.seek(magicpos - 7, 0)
+        found_at_start = False
+        if buf[7:14] == MainHeader.MAGIC:
+            self.__file.seek(0, 0)
             try:
                 self._parse_header()
+                found_at_start = True
             except (CorruptedArchiveError, TruncatedArchiveError):
+                pass
+        if not found_at_start:
+            if search == 0:
                 raise MainHeaderNotFoundError()
-        else:
-            magicpos = 0
+            self.__file.seek(0, 0)
+            buf = self.__file.read(search)
+            magicpos = 7
             while magicpos < search:
                 magicpos = buf.find(MainHeader.MAGIC, magicpos + 1, search)
                 if magicpos == -1:
-                    if len(buf) < search:
-                        # load full *search* bytes into memory and continue
-                        self.__file.seek(0, 0)
-                        buf = self.__file.read(search)
-                        magicpos = 512 - 7
-                        continue
                     raise MainHeaderNotFoundError()
                 self.__file.seek(magicpos - 7, 0)
                 try:
