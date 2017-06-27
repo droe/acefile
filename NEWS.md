@@ -1,5 +1,5 @@
 
-### acefile 0.4.3-dev
+### acefile 0.4.3 2017-06-27
 
 -   Search the first 1024 sectors of files for the main archive header by
     default, in line with the reference implementations.
