@@ -1,4 +1,9 @@
 
+### acefile 0.4.4-dev
+
+-   Added documentation into source packages.
+
+
 ### acefile 0.4.3 2017-06-27
 
 -   Search the first 1024 sectors of files for the main archive header by
