@@ -4,11 +4,14 @@
 from setuptools import setup, find_packages
 import acefile
 
+title, desc = acefile.__doc__.strip().split('\n', 1)
+desc = desc.strip()
+
 setup(
     name='acefile',
     version=acefile.__version__,
-    description='Read from ACE format archives in pure python',
-    long_description=acefile.__doc__,
+    description=title,
+    long_description=desc,
     url=acefile.__url__,
     author=acefile.__author__,
     author_email=acefile.__email__,
