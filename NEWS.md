@@ -1,6 +1,10 @@
 
 ### acefile 0.4.3-dev
 
+-   Search the first 1024 sectors of files for the main archive header by
+    default, in line with the reference implementations.
+-   Some performance improvement for all decompression modes.
+
 
 ### acefile 0.4.2 2017-06-25
 

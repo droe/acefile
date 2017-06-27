@@ -58,7 +58,6 @@ __url__         = 'https://www.roe.ch/acefile'
 __all__         = ['AceFile', 'AceInfo', 'is_acefile', 'AceError']
 
 # TODO
-# -   Optionally seek into first N bytes of files as per specs
 # -   Multivolume support
 
 import array
@@ -1850,7 +1849,6 @@ class Header:
     Base class for all ACE file format headers.
     """
     MAGIC               = b'**ACE**'
-    #MAGIC_SEARCH        = 1024*512
 
     TYPE_MAIN           = 0
     TYPE_FILE32         = 1
@@ -2125,6 +2123,14 @@ class AceError(Exception):
     """
     pass
 
+class MainHeaderNotFoundError(AceError):
+    """
+    The main ACE header marked by the magic bytes **ACE** could not be found.
+    Either the *search* argument was to small or the archive is not an ACE
+    format archive.
+    """
+    pass
+
 class TruncatedArchiveError(AceError):
     """
     Archive is truncated.
@@ -2235,10 +2241,14 @@ class AceFile:
         """
         return cls(*args, **kvargs)
 
-    def __init__(self, file, mode='r'):
+    def __init__(self, file, mode='r', search=524288):
         """
-        Open archive from file, which is either a filename or seekable
-        file-like object.  Only mode 'r' is implemented.
+        Open archive from *file*, which is either a filename or seekable
+        file-like object.  Only *mode* 'r' is implemented.
+        If *search* is 0, the archive must start at position 0 in *file*,
+        otherwise the first *search* bytes are searched for the magic bytes
+        **ACE** that mark the ACE main header.  For compatibility with the
+        official unace, 1024 sectors are searched by default.
         """
         if mode != 'r':
             raise NotImplementedError()
@@ -2256,7 +2266,7 @@ class AceFile:
         self.__main_header = None
         self.__file_headers = []
         self.__all_headers = []
-        self._parse_headers()
+        self._parse_headers(search)
         if self.__main_header == None:
             raise CorruptArchiveError()
         if self.__main_header.flag(Header.FLAG_MULTIVOLUME):
@@ -2619,15 +2629,55 @@ class AceFile:
                     comment.append(comment[source_pos + i])
         return bytes(comment)
 
-    def _parse_headers(self):
-        # This assumes no garbage before and after the archive;
-        # to support extraction of SFX archives, this should look
-        # for a main header in the first n bytes of the file.
+    def _parse_headers(self, search):
+        """
+        Parse ACE headers from self.__file.  If *search* is > 0, search for
+        the magic bytes in the first *search* bytes of the file.
+        Raises MainHeaderNotFoundError if the main header could not be located.
+        Raises other exceptions if parsing fails for other reasons.
+        On success, loads all the parsed headers into
+        self.__main_header, self.__file_headers and/or self.__all_headers.
+        """
         self.__file.seek(0, 0)
+        buf = self.__file.read(512)
+        if search == 0:
+            if buf[7:14] != MainHeader.MAGIC:
+                raise MainHeaderNotFoundError()
+            magicpos = 7
+            self.__file.seek(magicpos - 7, 0)
+            try:
+                self._parse_header()
+            except (CorruptedArchiveError, TruncatedArchiveError):
+                raise MainHeaderNotFoundError()
+        else:
+            magicpos = 0
+            while magicpos < search:
+                magicpos = buf.find(MainHeader.MAGIC, magicpos + 1, search)
+                if magicpos == -1:
+                    if len(buf) < search:
+                        # load full *search* bytes into memory and continue
+                        self.__file.seek(0, 0)
+                        buf = self.__file.read(search)
+                        magicpos = 512 - 7
+                        continue
+                    raise MainHeaderNotFoundError()
+                self.__file.seek(magicpos - 7, 0)
+                try:
+                    self._parse_header()
+                    break
+                except (CorruptedArchiveError, TruncatedArchiveError):
+                    continue
         while self.__file.tell() < self.__filesize:
             self._parse_header()
 
     def _parse_header(self):
+        """
+        Parse a single header from self.__file at the current file position.
+        Raises CorruptedArchiveError or TruncatedArchiveError if the header
+        cannot be parsed.  Guarantees that no data is written to object state
+        if an exception is thrown, otherwise the header is added to
+        self.__main_header, self.__file_headers and/or self.__all_headers.
+        """
         buf = self.__file.read(4)
         if len(buf) < 4:
             raise TruncatedArchiveError()
@@ -2746,13 +2796,14 @@ class AceFile:
 
 
 
-def is_acefile(file):
+def is_acefile(file, search=524288):
     """
-    Return True if file refers to an ACE archive by filename or seekable
-    file-like object.
+    Return True if *file* refers to an ACE archive by filename or seekable
+    file-like object.  If *search* is > 0, search for the magic bytes in the
+    first *search* bytes of the file.
     """
     try:
-        ace = open(file)
+        ace = open(file, search)
         ace.close()
         return True
     except AceError:
