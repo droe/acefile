@@ -48,13 +48,13 @@ Python 3.  No other dependencies.
 Extract all files in the archive, with directories, to current working dir:
 
     import acefile
-    with acefile.open("example.ace") as f:
+    with acefile.open('example.ace') as f:
         f.extractall()
 
 Walk all files in the archive and test each one of them:
 
     import acefile
-    with acefile.open("example.ace") as f:
+    with acefile.open('example.ace') as f:
         for ai in f.getmembers():
             if f.is_dir():
                 continue
@@ -71,6 +71,15 @@ In-memory decompression of a specific archive member:
     filelike = io.BytesIO(b'\x73\x83\x31\x00\x00\x00\x90**ACE**\x14\x14' ...)
     with acefile.open(filelike) as f:
         data = f.read('example.txt')
+
+Handle large archives in chunks to avoid fully reading them into memory:
+
+    import acefile
+
+    with acefile.open('large.ace') as fi:
+        with open('large.iso', 'wb') as fo:
+            for block in fi.readblocks('large.iso'):
+                fo.write(block)
 
 Check the source for more functionality.
 
