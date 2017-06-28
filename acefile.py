@@ -276,14 +276,12 @@ class BitStream:
         mask = ((0xFFFFFFFF << (32 - length)) & 0xFFFFFFFF) >> start
         return (value & mask) >> (32 - length - start)
 
-    def __init__(self, f, size):
+    def __init__(self, f):
         """
-        Initialize BitStream reading from file-like object *f* a maximum of
-        *size* bytes, after which there is a maximum of 32 bits zero padding.
+        Initialize BitStream reading from file-like object *f* until EOF,
+        after which there is a maximum of 32 bits zero padding added.
         """
-        assert size % 4 == 0
         self.__file = f
-        self.__file_remaining = size    # in bytes
         self.__buf = array.array('I')
         self.__len = 0                  # in bits
         self.__pos = 0                  # in bits
@@ -293,14 +291,11 @@ class BitStream:
         """
         Refill the internal buffer with data read from file.
         """
-        if self.__file_remaining == 0:
+        tmpbuf = self.__file.read(FILE_BLOCKSIZE)
+        if len(tmpbuf) == 0:
             raise self.Depleted()
-
-        amount = min(self.__file_remaining, FILE_BLOCKSIZE)
-        tmpbuf = self.__file.read(amount)
-        if len(tmpbuf) < amount:
-            raise self.Depleted()
-        self.__file_remaining -= len(tmpbuf)
+        if len(tmpbuf) % 4 != 0:
+            raise CorruptedArchiveError("len(tmpbuf) % 4 != 0")
 
         newbuf = self.__buf[-1:]
         for i in range(0, len(tmpbuf), 4):
@@ -373,6 +368,30 @@ class BitStream:
             return - (value >> 1) - 1
         else:
             return value >> 1
+
+
+
+class FileSegmentIO:
+    """
+    Non-seekable file-like object that wraps and reads from seekable file-like
+    object and fakes EOF when a read would extend beyond a defined boundary.
+    """
+    def __init__(self, f, size):
+        assert f.seekable()
+        self.__file = f
+        self.__eof = f.tell() + size
+
+    def seekable():
+        return False
+
+    def read(self, n=None):
+        if n == None:
+            amount = self.__eof - self.__file.tell()
+        else:
+            amount = min(n, self.__eof - self.__file.tell())
+        if amount == 0:
+            return b''
+        return self.__file.read(amount)
 
 
 
@@ -1661,12 +1680,12 @@ class ACE:
         self.__sound = Sound()
         self.__pic = Pic()
 
-    def decompress_stored(self, f, packsize, filesize, params):
+    def decompress_stored(self, f, filesize, params):
         """
         Decompress data compressed using the store method from file-like-object
-        *f* containing *packsize* compressed bytes that will be decompressed to
-        *filesize* bytes.  Decompressed data will be yielded in blocks of
-        undefined size upon availability.
+        *f* containing compressed bytes that will be decompressed to *filesize*
+        bytes.  Decompressed data will be yielded in blocks of undefined size
+        upon availability.
         """
         self.__lz77.set_dicbits((params & 15) + 10)
         producedsize = 0
@@ -1679,16 +1698,16 @@ class ACE:
             yield outchunk
             producedsize += len(outchunk)
 
-    def decompress_lz77(self, f, packsize, filesize, params):
+    def decompress_lz77(self, f, filesize, params):
         """
         Decompress data compressed using the ACE 1.0 legacy LZ77 method from
-        file-like-object *f* containing *packsize* compressed bytes that will
-        be decompressed to *filesize* bytes.  Decompressed data will be yielded
+        file-like-object *f* containing compressed bytes that will be
+        decompressed to *filesize* bytes.  Decompressed data will be yielded
         in blocks of undefined size upon availability.
         """
         self.__lz77.set_dicbits((params & 15) + 10)
         self.__lz77.reinit()
-        bs = BitStream(f, packsize)
+        bs = BitStream(f)
         producedsize = 0
         while producedsize < filesize:
             outchunk, next_mode = self.__lz77.read(bs, filesize)
@@ -1697,14 +1716,14 @@ class ACE:
             yield outchunk
             producedsize += len(outchunk)
 
-    def decompress_blocked(self, f, packsize, filesize, params):
+    def decompress_blocked(self, f, filesize, params):
         """
         Decompress data compressed using the ACE 2.0 blocked method from
-        file-like-object *f* containing *packsize* compressed bytes that will
-        be decompressed to *filesize* bytes.  Decompressed data will be yielded
+        file-like-object *f* containing compressed bytes that will be
+        decompressed to *filesize* bytes.  Decompressed data will be yielded
         in blocks of undefined size upon availability.
         """
-        bs = BitStream(f, packsize)
+        bs = BitStream(f)
         self.__lz77.set_dicbits((params & 15) + 10)
         self.__lz77.reinit()
 
@@ -2480,17 +2499,15 @@ class AceFile:
                 raise UnknownMethodError()
 
             self.__file.seek(hdr.dataoffset, 0)
+            f = FileSegmentIO(self.__file, hdr.packsize)
             if hdr.flag(Header.FLAG_PASSWORD):
                 if not pwd:
                     raise EncryptedArchiveError()
-                f = EncryptedFileIO(self.__file, pwd)
-            else:
-                f = self.__file
+                f = EncryptedFileIO(f, pwd)
 
             crc = AceCRC32()
             try:
-                for block in decompressor(f, hdr.packsize, hdr.origsize,
-                                          hdr.params):
+                for block in decompressor(f, hdr.origsize, hdr.params):
                     crc += block
                     yield block
             except CorruptedArchiveError:
@@ -2603,7 +2620,7 @@ class AceFile:
         Decompress an ACE MAIN or FILE comment.  These are compressed using
         Huffman coding plus a simple copy mechanism.
         """
-        bs = BitStream(io.BytesIO(buf), len(buf))
+        bs = BitStream(io.BytesIO(buf))
         want_size = bs.read_bits(15)
         huff_syms, huff_widths = Huffman.read_widths(bs,
                                                      LZ77.MAXCODEWIDTH,
