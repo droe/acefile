@@ -2815,7 +2815,7 @@ def unace():
     import getpass
 
     parser = argparse.ArgumentParser(description="""
-            Read from ACE format archives in pure python.
+            Read/test/extract ACE 1.0 and 2.0 archives in pure python
             """)
 
     parser.add_argument('archive', type=str,
@@ -2838,7 +2838,7 @@ def unace():
             help='dump archive headers')
     group.add_argument('--selftest',
             action='store_const', dest='mode', const='selftest',
-            help='implementation selftest')
+            help=argparse.SUPPRESS)
 
     parser.add_argument('--basedir', type=str, default='.',
             help='base directory for extraction')
