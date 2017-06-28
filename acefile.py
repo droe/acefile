@@ -2019,7 +2019,7 @@ class MainHeader(Header):
     cversion    %i
     host        0x%02x        %s
     volume      %i
-    date        0x%08x
+    datetime    0x%08x  %s
     reserved1   %02x %02x %02x %02x %02x %02x %02x %02x
     advert      %s
     comment     %r
@@ -2030,6 +2030,7 @@ class MainHeader(Header):
                 self.host, self.host_str,
                 self.volume,
                 self.datetime,
+                _dt_fromdos(self.datetime).strftime('%Y-%m-%d %H:%M:%S'),
                 self.reserved1[0], self.reserved1[1],
                 self.reserved1[2], self.reserved1[3],
                 self.reserved1[4], self.reserved1[5],
@@ -2068,7 +2069,7 @@ class FileHeader(Header):
         return super().__str__() + """
     packsize    %i
     origsize    %i
-    datetime    0x%08x
+    datetime    0x%08x  %s
     attribs     0x%08x  %s
     crc32       0x%08x
     comptype    0x%02x        %s
@@ -2081,6 +2082,7 @@ class FileHeader(Header):
                 self.packsize,
                 self.origsize,
                 self.datetime,
+                _dt_fromdos(self.datetime).strftime('%Y-%m-%d %H:%M:%S'),
                 self.attribs, self.attribs_str,
                 self.crc32,
                 self.comptype, self.comptype_str,
