@@ -2816,7 +2816,7 @@ def is_acefile(file, *, search=524288):
     first *search* bytes of the file.
     """
     try:
-        ace = open(file, search)
+        ace = open(file, search=search)
         ace.close()
         return True
     except AceError:
