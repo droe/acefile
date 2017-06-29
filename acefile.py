@@ -1712,7 +1712,7 @@ class ACE:
         while producedsize < filesize:
             outchunk, next_mode = self.__lz77.read(bs, filesize)
             if next_mode:
-                raise CorruptArchiveError()
+                raise CorruptedArchiveError()
             yield outchunk
             producedsize += len(outchunk)
 
@@ -2286,7 +2286,7 @@ class AceFile:
         self.__all_headers = []
         self._parse_headers(search)
         if self.__main_header == None:
-            raise CorruptArchiveError()
+            raise CorruptedArchiveError()
         if self.__main_header.flag(Header.FLAG_MULTIVOLUME):
             raise NotImplementedError()
         self.__file_aceinfos = []
