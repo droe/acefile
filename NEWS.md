@@ -2,6 +2,8 @@
 ### acefile 0.4.4-dev
 
 -   Added documentation into source packages.
+-   All optional function arguments need to be passed in keyword syntax, not
+    as positional argument.
 
 
 ### acefile 0.4.3 2017-06-27

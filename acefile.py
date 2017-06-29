@@ -2259,7 +2259,7 @@ class AceFile:
         """
         return cls(*args, **kvargs)
 
-    def __init__(self, file, mode='r', search=524288):
+    def __init__(self, file, mode='r', *, search=524288):
         """
         Open archive from *file*, which is either a filename or seekable
         file-like object.  Only *mode* 'r' is implemented.
@@ -2396,7 +2396,7 @@ class AceFile:
         """
         return [ai.filename for ai in self.__file_aceinfos]
 
-    def extract(self, member, path=None, pwd=None):
+    def extract(self, member, *, path=None, pwd=None):
         """
         Extract an archive member to *path* or the current working directory.
         *Member* can refer to an AceInfo object, a member name or an index
@@ -2428,7 +2428,7 @@ class AceFile:
                 for buf in self.readblocks(ai, pwd=pwd):
                     f.write(buf)
 
-    def extractall(self, path=None, members=None, pwd=None):
+    def extractall(self, *, path=None, members=None, pwd=None):
         """
         Extract *members* or all members from archive to *path* or the current
         working directory.  Members can contain AceInfo objects, member names
@@ -2447,7 +2447,7 @@ class AceFile:
         for ai in members:
             self.extract(ai, path=path, pwd=pwd)
 
-    def read(self, member, pwd=None):
+    def read(self, member, *, pwd=None):
         """
         Read the bytes of a member from the archive.
         *Member* can refer to an AceInfo object, a member name or an index
@@ -2460,9 +2460,9 @@ class AceFile:
         restart at the beginning of the solid archive to restore internal
         decompressor state.
         """
-        return b''.join(self.readblocks(member, pwd))
+        return b''.join(self.readblocks(member, pwd=pwd))
 
-    def readblocks(self, member, pwd=None):
+    def readblocks(self, member, *, pwd=None):
         """
         Read the archive by yielding blocks of bytes.
         *Member* can refer to an AceInfo object, a member name or an index
@@ -2521,7 +2521,7 @@ class AceFile:
 
         self.__next_read_idx += 1
 
-    def test(self, member, pwd=None):
+    def test(self, member, *, pwd=None):
         """
         Read a file from the archive.  Returns False if any corruption was
         found, True if the header and decompression was okay.
@@ -2545,7 +2545,7 @@ class AceFile:
         except AceError:
             return False
 
-    def testall(self, pwd=None):
+    def testall(self, *, pwd=None):
         """
         Read all the files in the archive.  Returns the name of the first file
         with a failing header or content CRC, or None if all files were okay.
@@ -2809,7 +2809,7 @@ class AceFile:
 
 
 
-def is_acefile(file, search=524288):
+def is_acefile(file, *, search=524288):
     """
     Return True if *file* refers to an ACE archive by filename or seekable
     file-like object.  If *search* is > 0, search for the magic bytes in the
