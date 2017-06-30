@@ -25,8 +25,8 @@ The library API is modeled after tarfile.  As pure-python implementation,
 it is significantly slower than native implementations.
 
 This implementation supports up to version 2.0 of the ACE archive format,
-including the EXE, DIFF, PIC and SOUND modes of ACE 2.0 and including
-password protected archives.  Multivolume archives are not supported yet.
+including the EXE, DIFF, PIC and SOUND modes of ACE 2.0, password protected
+archives and multi-volume archives.
 
 This is an implementation from scratch, based on the 1998 document titled
 "Technical information of the archiver ACE v1.2" by Marcel Lemke, using
