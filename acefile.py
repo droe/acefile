@@ -896,8 +896,8 @@ class Huffman:
         code_pos = 0
         i = actual_size
         while i >= 0 and code_pos < max_code_pos:
-            if max_width - frequencies[i] < 0:
-                raise CorruptedArchiveError("max_width - frequencies[i] < 0")
+            if frequencies[i] > max_width:
+                raise CorruptedArchiveError("frequencies[i] > max_width")
             num_codes = 1 << (max_width - frequencies[i])
             code = elements[i]
             if code_pos + num_codes > max_code_pos:
