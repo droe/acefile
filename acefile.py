@@ -891,10 +891,9 @@ class Huffman:
             if actual_size == 0:
                 actual_size += 1
 
-        actual_size -= 1
         max_code_pos = 1 << max_width
         code_pos = 0
-        i = actual_size
+        i = actual_size - 1
         while i >= 0 and code_pos < max_code_pos:
             if frequencies[i] > max_width:
                 raise CorruptedArchiveError("frequencies[i] > max_width")
