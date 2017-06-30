@@ -222,6 +222,12 @@ class AceCRC32:
         """
         return self.sum.__format__(format_spec)
 
+    def __str__(self):
+        """
+        String representation of object is hex value of checksum.
+        """
+        return "0x%08x" % self.sum
+
     @property
     def sum(self):
         """
