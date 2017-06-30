@@ -299,7 +299,7 @@ class BitStream:
         """
         tmpbuf = self.__file.read(FILE_BLOCKSIZE)
         if len(tmpbuf) == 0:
-            raise self.Depleted()
+            raise BitStream.Depleted()
         if len(tmpbuf) % 4 != 0:
             raise CorruptedArchiveError("len(tmpbuf) % 4 != 0")
 
@@ -313,26 +313,21 @@ class BitStream:
         self.__buf = newbuf
         self.__len = 32 * len(newbuf)
 
-    def _have_bits(self, bits):
-        """
-        Ensure we have *bits* bits available in internal buffer by refilling
-        if necessary.
-        """
-        if self.__pos + bits > self.__len:
-            self._refill()
-
     def skip_bits(self, bits):
         """
         Skip *bits* bits in the stream.
         """
-        self._have_bits(bits)
+        if self.__pos + bits > self.__len:
+            self._refill()
         self.__pos += bits
 
     def peek_bits(self, bits):
         """
         Peek at next *bits* bits in the stream without incrementing position.
         """
-        self._have_bits(bits)
+        if self.__pos + bits > self.__len:
+            self._refill()
+
         peeked = min(bits, 32 - (self.__pos % 32))
         res = self._getbits(self.__buf[self.__pos // 32],
                             self.__pos % 32, peeked)
