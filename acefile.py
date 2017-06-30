@@ -2326,7 +2326,7 @@ class AceFile:
         return ai
 
     def __repr__(self):
-        return "<%s %r at %#x>" % (self.__class__.__name__,self.name,id(self))
+        return "<%s %r at %#x>" % (self.__class__.__name__,self.filename,id(self))
 
     def close(self):
         """
