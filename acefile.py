@@ -2567,6 +2567,7 @@ class AceFile:
         """
         Dump all ACE file format headers to *file*.
         """
+        print("[%s]" % self.__filename, file=file)
         for h in self.__all_headers:
             print(h, file=file)
 
