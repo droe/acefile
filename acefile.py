@@ -3054,12 +3054,12 @@ def unace():
             action='store_const', dest='mode', const='selftest',
             help=argparse.SUPPRESS)
 
-    parser.add_argument('--basedir', type=str, default='.',
+    parser.add_argument('-d', '--basedir', type=str, default='.', metavar='X',
             help='base directory for extraction')
-    parser.add_argument('--password', '-p', type=str,
+    parser.add_argument('-p', '--password', type=str, metavar='X',
             help='password for decryption')
-    parser.add_argument('-y', '--yes', action='store_true',
-            help='assume yes to all questions')
+    parser.add_argument('-b', '--batch', action='store_true',
+            help='suppress all interactive input')
     parser.add_argument('-v', '--verbose', action='store_true',
             help='be more verbose')
 
@@ -3106,7 +3106,7 @@ def unace():
             else:
                 members = f.getmembers()
             for ai in members:
-                if ai.is_enc() and password == None and not args.yes:
+                if ai.is_enc() and password == None and not args.batch:
                     try:
                         password = getpass.getpass("%s password: " % \
                                                     ai.filename)
@@ -3119,9 +3119,9 @@ def unace():
                             eprint("%s" % ai.filename)
                         break
                     except EncryptedArchiveError:
-                        if args.verbose or args.yes or not password:
+                        if args.verbose or args.batch or not password:
                             eprint("%s failed to decrypt" % ai.filename)
-                        if args.yes or not password:
+                        if args.batch or not password:
                             failed += 1
                             break
                         try:
@@ -3192,7 +3192,7 @@ def unace():
                     print("failure  %s" % ai.filename)
                     failed += 1
                     continue
-                if ai.is_enc() and password == None and not args.yes:
+                if ai.is_enc() and password == None and not args.batch:
                     try:
                         password = getpass.getpass("%s password: " % \
                                                     ai.filename)
@@ -3208,7 +3208,7 @@ def unace():
                             failed += 1
                         break
                     except EncryptedArchiveError:
-                        if args.yes or not password:
+                        if args.batch or not password:
                             print("needpwd  %s" % ai.filename)
                             failed += 1
                             break
