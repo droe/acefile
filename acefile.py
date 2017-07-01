@@ -1053,10 +1053,6 @@ class LZ77:
             return self.__current_tuple[0]
 
         @property
-        def args(self):
-            return self.__current_tuple[1:]
-
-        @property
         def len(self):
             return self.__current_tuple[1]
 
