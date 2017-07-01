@@ -349,7 +349,7 @@ class BitStream:
         self.skip_bits(bits)
         return value
 
-    def golomb_rice(self, r_bits, signed=False):
+    def read_golomb_rice(self, r_bits, signed=False):
         """
         Read a Golomb-Rice code with *r_bits* remainder bits and an arbitrary
         number of quotient bits from bitstream and return the represented
@@ -369,6 +369,17 @@ class BitStream:
             return - (value >> 1) - 1
         else:
             return value >> 1
+
+    def read_knownwidth_uint(self, bits):
+        """
+        Read an unsigned integer with previously known bit width *bits* from
+        stream.  The most significant bit is not encoded in the bit stream,
+        because it is always 1.
+        """
+        if bits < 2:
+            return bits
+        bits -= 1
+        return self.read_bits(bits) + (1 << bits)
 
 
 
@@ -1163,20 +1174,16 @@ class LZ77:
             bs.skip_bits(main_widths[symbol])
 
             if symbol > 255:
-                arg2 = None
                 if symbol == LZ77.TYPECODE:
-                    arg1 = AceMode.read(bs)
+                    self.__symbols.append(symbol, AceMode.read(bs))
                 else:
                     if symbol > 259:
-                        # most significant bit is always 1 and not encoded
-                        bits = symbol - 260
-                        if bits >= 2:
-                            arg2 = bs.read_bits(bits - 1) + (1 << (bits - 1))
-                        else:
-                            arg2 = bits
+                        arg2 = bs.read_knownwidth_uint(symbol - 260)
+                    else:
+                        arg2 = None
                     arg1 = len_syms[bs.peek_bits(LZ77.MAXCODEWIDTH)]
                     bs.skip_bits(len_widths[arg1])
-                self.__symbols.append(symbol, arg1, arg2)
+                    self.__symbols.append(symbol, arg1, arg2)
             else:
                 self.__symbols.append(symbol)
 
@@ -1521,8 +1528,8 @@ class Pic:
         Read width and planes from BitStream *bs* and reset all data dependent
         state to initial values.
         """
-        self.__width = bs.golomb_rice(12)
-        self.__planes = bs.golomb_rice(2)
+        self.__width = bs.read_golomb_rice(12)
+        self.__planes = bs.read_golomb_rice(2)
         self.__lastdata = [0] * (self.__width + self.__planes)
         self.__leftover = []
         self.__models = [self.Model(), self.Model()]
@@ -1594,7 +1601,7 @@ class Pic:
         context.used_counter += 1
 
         r = c_div(context.average_counter, context.used_counter)
-        epsilon = bs.golomb_rice(r.bit_length(), signed=True)
+        epsilon = bs.read_golomb_rice(r.bit_length(), signed=True)
         predicted = self._predict(context.predictor_number)
         pixel_x = c_uchar(predicted + epsilon)
 
