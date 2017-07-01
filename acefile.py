@@ -907,6 +907,23 @@ class Huffman:
     MAXWIDTHSVDWD       = 7
     MAXWIDTHTOSAVE      = 15
 
+    class Tree:
+        """
+        Huffman tree reconstructed from bitstream.
+        """
+        def __init__(self, codes, widths, max_width):
+            self.codes = codes
+            self.widths = widths
+            self.max_width = max_width
+
+        def read(self, bs):
+            """
+            Read a single Huffman symbol from bit stream *bs*.
+            """
+            symbol = self.codes[bs.peek_bits(self.max_width)]
+            bs.skip_bits(self.widths[symbol])
+            return symbol
+
     @staticmethod
     def _quicksort(keys, values, count):
         """
@@ -981,11 +998,12 @@ class Huffman:
             i -= 1
 
     @staticmethod
-    def read_widths(bs, max_width, num_codes):
+    def read_tree(bs, max_width, num_codes):
         """
-        Read Huffman codes and their widths from BitStream *bs*.
-        The caller specifies the maximum width of a single code *max_width*
-        and the number of codes *num_codes*.
+        Read a Huffman tree consisting of codes and their widths from
+        BitStream *bs*.  The caller specifies the maximum width of a single
+        code *max_width* and the number of codes *num_codes*; these are
+        required to reconstruct the Huffman tree.
         """
         codes = [0] * (1 << max_width)
         widths = [0] * (num_codes + 1)
@@ -1028,7 +1046,7 @@ class Huffman:
                 widths[i] += lower_width
 
         Huffman._make_codes(max_width, num_widths, widths, codes)
-        return (codes, widths)
+        return Huffman.Tree(codes, widths, max_width)
 
 
 
@@ -1156,23 +1174,13 @@ class LZ77:
         """
         self.__dictionary = self.__dictionary[-self.__dicsize:]
 
-    # quasi-static
-    def _read_tabs(self, bs):
-        main_syms, main_widths = Huffman.read_widths(bs,
-                                                     LZ77.MAXCODEWIDTH,
-                                                     LZ77.NUMMAINCODES)
-        len_syms,  len_widths  = Huffman.read_widths(bs,
-                                                     LZ77.MAXCODEWIDTH,
-                                                     LZ77.NUMLENCODES)
-        block_size = bs.read_bits(15)
-        return (block_size, main_syms, main_widths, len_syms, len_widths)
-
     def _read_syms(self, bs):
-        block_size, main_syms, main_widths, len_syms, len_widths = \
-                self._read_tabs(bs)
+        main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
+        len_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMLENCODES)
+        block_size = bs.read_bits(15)
+
         for i in range(block_size):
-            symbol = main_syms[bs.peek_bits(LZ77.MAXCODEWIDTH)]
-            bs.skip_bits(main_widths[symbol])
+            symbol = main_tree.read(bs)
 
             if symbol > 255:
                 if symbol == LZ77.TYPECODE:
@@ -1182,8 +1190,7 @@ class LZ77:
                         arg2 = bs.read_knownwidth_uint(symbol - 260)
                     else:
                         arg2 = None
-                    arg1 = len_syms[bs.peek_bits(LZ77.MAXCODEWIDTH)]
-                    bs.skip_bits(len_widths[arg1])
+                    arg1 = len_tree.read(bs)
                     self.__symbols.append(symbol, arg1, arg2)
             else:
                 self.__symbols.append(symbol)
@@ -1428,24 +1435,20 @@ class Sound:
             channel.reinit()
         self.__mode           = mode - ACE.MODE_SOUND_8
         num_models            = Sound.NUMCHANNELS[self.__mode] * 3
-        self.__huff_symbols   = [None] * num_models
-        self.__huff_widths    = [None] * num_models
+        self.__huff_trees     = [None] * num_models
         self.__blocksize      = 0
 
-    def _read_tabs(self, bs):
-        for i in range(len(self.__huff_symbols)):
-            self.__huff_symbols[i], self.__huff_widths[i] = \
-                    Huffman.read_widths(bs, Sound.MAXCODEWIDTH, Sound.NUMCODES)
+    def _read_trees(self, bs):
+        for i in range(len(self.__huff_trees)):
+            self.__huff_trees[i] = \
+                    Huffman.read_tree(bs, Sound.MAXCODEWIDTH, Sound.NUMCODES)
         self.__blocksize = bs.read_bits(15)
 
     def _get_symbol(self, bs, model):
         if self.__blocksize == 0:
-            self._read_tabs(bs)
-
-        symbol = self.__huff_symbols[model][bs.peek_bits(Sound.MAXCODEWIDTH)]
-        bs.skip_bits(self.__huff_widths[model][symbol])
+            self._read_trees(bs)
         self.__blocksize -= 1
-        return symbol
+        return self.__huff_trees[model].read(bs)
 
     def read(self, bs, want_size):
         """
@@ -2811,9 +2814,7 @@ class AceFile:
         """
         bs = BitStream(io.BytesIO(buf))
         want_size = bs.read_bits(15)
-        huff_syms, huff_widths = Huffman.read_widths(bs,
-                                                     LZ77.MAXCODEWIDTH,
-                                                     LZ77.NUMMAINCODES)
+        huff_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
         comment = []
         htab = [0] * 511
         while len(comment) < want_size:
@@ -2823,10 +2824,7 @@ class AceFile:
                 htab[hval] = len(comment)
             else:
                 source_pos = 0
-
-            code = huff_syms[bs.peek_bits(LZ77.MAXCODEWIDTH)]
-            bs.skip_bits(huff_widths[code])
-
+            code = huff_tree.read(bs)
             if code < 256:
                 comment.append(code)
             else:
