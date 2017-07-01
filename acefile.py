@@ -2724,7 +2724,7 @@ class AceFile:
         Raises EncryptedArchiveError if an archive member is encrypted but no
         password was provided.
         """
-        for ai in self.getmembers:
+        for ai in self.getmembers():
             if not self.test(ai, pwd=pwd):
                 return ai.filename
         return None
