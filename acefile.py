@@ -2400,32 +2400,35 @@ class AceFile:
                 # if file is not a str, then this is a non-first volume in a
                 # multi-volume archive loaded separately
                 if isinstance(file, str):
-                    nextname = self._get_next_volume_filename()
-                    if nextname:
+                    for nextname in self._get_next_volume_filename():
                         try:
                             self.__next_volume = AceFile(nextname, mode=mode,
                                                          search=0, _idx=idx,
                                                          _ai=ai)
+                            break
                         except FileNotFoundError:
-                            pass
+                            continue
 
     def _get_next_volume_filename(self):
         """
         Derive the filename of the next volume after self.__filename.
-        If the filename ends in ".cXX", XX is incremented by 1.
+        If the filename ends in ".[cC]XX", XX is incremented by 1.
         Otherwise self is assumed to be the first in the series and
-        ".c00" is used as extension.
+        ".[cC]00" is used as extension.
+        Returns the derived filename in two variants, upper and lower case,
+        to allow for finding the file on case-sensitive filesystems.
         """
         base, ext = os.path.splitext(self.__filename)
         ext = ext.lower()
         if ext[:2] == '.c':
             try:
                 n = int(ext[2:])
+                return (base + ('.c%02i' % (n + 1)),
+                        base + ('.C%02i' % (n + 1)))
             except ValueError:
-                return None
-            return base + ('.c%02i' % (n + 1))
-        else:
-            return base + '.c00'
+                pass
+        return (base + '.c00',
+                base + '.C00')
 
     def __enter__(self):
         """
