@@ -1,4 +1,10 @@
 
+### acefile 0.5.1-dev
+
+-   Fix regression that broke extraction but not testing by yielding bytes,
+    not lists of chars.
+
+
 ### acefile 0.5.0 2017-07-01
 
 -   Add multi-volume archive support.

@@ -47,7 +47,7 @@ This is an implementation from scratch, based on the 1998 document titled
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 """
 
-__version__     = '0.5.0'
+__version__     = '0.5.1-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017, Daniel Roethlisberger'
@@ -1256,7 +1256,7 @@ class LZ77:
         else:
             chunk = []
         self._dic_truncate()
-        return (chunk, next_mode)
+        return (bytes(chunk), next_mode)
 
 
 
@@ -1461,7 +1461,7 @@ class Sound:
             sample = c_uchar(value + self.__channels[channel]._rar_predict())
             chunk.append(sample)
             self.__channels[channel]._rar_adjust(sample)
-        return (chunk, None)
+        return (bytes(chunk), None)
 
 
 
@@ -1683,7 +1683,7 @@ class Pic:
             else:
                 chunk.extend(data[0:n])
                 self.__leftover = data[n:]
-        return (chunk, next_mode)
+        return (bytes(chunk), next_mode)
 
 
 
