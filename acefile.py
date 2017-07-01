@@ -992,6 +992,33 @@ class Huffman:
         return (codes, widths)
 
 
+class AceMode:
+    """
+    Represent and parse compression submode information from a bitstream.
+    """
+    @classmethod
+    def read(cls, bs):
+        mode = cls(bs.read_bits(8))
+        if mode.mode == ACE.MODE_LZ77_DELTA:
+            mode.delta_dist = bs.read_bits(8)
+            mode.delta_len = bs.read_bits(17)
+        elif mode.mode == ACE.MODE_LZ77_EXE:
+            mode.exe_mode = bs.read_bits(8)
+        return mode
+
+    def __init__(self, mode):
+        self.mode = mode
+
+    def __str__(self):
+        args = ''
+        if self.mode == ACE.MODE_LZ77_DELTA:
+            args = " delta_dist=%i delta_len=%i" % (self.delta_dist,
+                                                    self.delta_len)
+        elif self.mode == ACE.MODE_LZ77_EXE:
+            args = " exe_mode=%i" % self.exe_mode
+        return "%s(%i)%s" % (ACE.mode_str(self.mode), self.mode, args)
+
+
 
 class LZ77:
     """
@@ -1038,12 +1065,8 @@ class LZ77:
             return self.__current_tuple[2]
 
         @property
-        def typecode(self):
+        def next_mode(self):
             return self.__current_tuple[1]
-
-        @property
-        def typeargs(self):
-            return self.__current_tuple[2]
 
         @property
         def next_symbol(self):
@@ -1146,12 +1169,7 @@ class LZ77:
             if symbol > 255:
                 arg2 = None
                 if symbol == LZ77.TYPECODE:
-                    typecode = bs.read_bits(8)
-                    arg1 = typecode
-                    if typecode == ACE.MODE_LZ77_DELTA:
-                        arg2 = bs.read_bits(25)
-                    elif typecode == ACE.MODE_LZ77_EXE:
-                        arg2 = bs.read_bits(8)
+                    arg1 = AceMode.read(bs)
                 else:
                     if symbol > 259:
                         # most significant bit is always 1 and not encoded
@@ -1200,16 +1218,7 @@ class LZ77:
 
             if sym.symbol > 255:
                 if sym.symbol == LZ77.TYPECODE:
-                    typecode = sym.typecode
-                    if typecode == ACE.MODE_LZ77_DELTA:
-                        delta_dist = sym.typeargs >> 17
-                        delta_len = sym.typeargs & 0x1FFFF
-                        next_mode = (typecode, delta_dist, delta_len)
-                    elif typecode == ACE.MODE_LZ77_EXE:
-                        exe_mode = sym.typeargs
-                        next_mode = (typecode, exe_mode)
-                    else:
-                        next_mode = (typecode,)
+                    next_mode = sym.next_mode
                     break
 
                 copy_len = sym.len
@@ -1299,17 +1308,7 @@ class Sound:
             if self.__get_state != 2:
                 self.__get_code = self.__sound._get_symbol(bs, self.model())
                 if self.__get_code == Sound.TYPECODE:
-                    next_type = bs.read_bits(8)
-                    if next_type == ACE.MODE_LZ77_DELTA:
-                        delta_dist = bs.read_bits(8)
-                        delta_len = bs.read_bits(17)
-                        next_mode = (next_type, delta_dist, delta_len)
-                    elif next_type == ACE.MODE_LZ77_EXE:
-                        exe_mode = bs.read_bits(8)
-                        next_mode = (next_type, exe_mode)
-                    else:
-                        next_mode = (next_type,)
-                    return next_mode
+                    return AceMode.read(bs)
 
             if self.__get_state == 0:
                 if self.__get_code >= Sound.RUNLENCODES:
@@ -1456,7 +1455,7 @@ class Sound:
         for i in range(want_size & 0xFFFFFFFC):
             channel = Sound.USECHANNELS[self.__mode][i % 4]
             value = self.__channels[channel]._get(bs)
-            if isinstance(value, tuple):
+            if isinstance(value, AceMode):
                 return (chunk, value)
             sample = c_uchar(value + self.__channels[channel]._rar_predict())
             chunk.append(sample)
@@ -1665,16 +1664,7 @@ class Pic:
             self.__leftover = []
         while len(chunk) < want_size:
             if bs.read_bits(1) == 0:
-                next_type = bs.read_bits(8)
-                if next_type == ACE.MODE_LZ77_DELTA:
-                    delta_dist = bs.read_bits(8)
-                    delta_len = bs.read_bits(17)
-                    next_mode = (next_type, delta_dist, delta_len)
-                elif next_type == ACE.MODE_LZ77_EXE:
-                    exe_mode = bs.read_bits(8)
-                    next_mode = (next_type, exe_mode)
-                else:
-                    next_mode = (next_type,)
+                next_mode = AceMode.read(bs)
                 break
             data = self._line(bs)
             n = min(want_size - len(chunk), len(data))
@@ -1691,7 +1681,7 @@ class ACE:
     """
     Core decompression engine for ACE compression up to version 2.0.
     """
-    MODE_LZ77_NORM          = 0     # LZ77
+    MODE_LZ77               = 0     # LZ77
     MODE_LZ77_DELTA         = 1     # LZ77 after byte reordering
     MODE_LZ77_EXE           = 2     # LZ77 after patching JMP/CALL targets
     MODE_SOUND_8            = 3     # 8 bit sound compression
@@ -1699,7 +1689,7 @@ class ACE:
     MODE_SOUND_32A          = 5     # 32 bit sound compression, variant 1
     MODE_SOUND_32B          = 6     # 32 bit sound compression, variant 2
     MODE_PIC                = 7     # picture compression
-    MODE_STRINGS            = ('LZ77_NORMAL', 'LZ77_DELTA', 'LZ77_EXE',
+    MODE_STRINGS            = ('LZ77', 'LZ77_DELTA', 'LZ77_EXE',
                                'SOUND_8', 'SOUND_16', 'SOUND_32A', 'SOUND_32B',
                                'PIC')
 
@@ -1769,36 +1759,34 @@ class ACE:
         last_delta = 0
 
         next_mode = None
-        mode_type = 0
-        mode_args = ()
+        mode = AceMode(ACE.MODE_LZ77)
 
         producedsize = 0
         while producedsize < filesize:
             if next_mode != None:
-                if mode_type != next_mode[0]:
-                    if next_mode[0] in [ACE.MODE_SOUND_8,
-                                        ACE.MODE_SOUND_16,
-                                        ACE.MODE_SOUND_32A,
-                                        ACE.MODE_SOUND_32B]:
-                        self.__sound.reinit(next_mode[0])
-                    elif next_mode[0] == ACE.MODE_PIC:
+                if mode.mode != next_mode.mode:
+                    if next_mode.mode in [ACE.MODE_SOUND_8,
+                                          ACE.MODE_SOUND_16,
+                                          ACE.MODE_SOUND_32A,
+                                          ACE.MODE_SOUND_32B]:
+                        self.__sound.reinit(next_mode.mode)
+                    elif next_mode.mode == ACE.MODE_PIC:
                         self.__pic.reinit(bs)
 
-                mode_type = next_mode[0]
-                mode_args = next_mode[1:]
+                mode = next_mode
                 next_mode = None
 
             outchunk = []
-            if mode_type == ACE.MODE_LZ77_DELTA:
-                delta_dist, delta_len = mode_args
+            if mode.mode == ACE.MODE_LZ77_DELTA:
                 delta = []
-                while len(delta) < delta_len:
-                    chunk, nm = self.__lz77.read(bs, delta_len - len(delta))
+                while len(delta) < mode.delta_len:
+                    chunk, nm = self.__lz77.read(bs,
+                                                 mode.delta_len - len(delta))
                     delta.extend(chunk)
                     if nm != None:
                         assert next_mode == None
                         next_mode = nm
-                assert len(delta) == delta_len
+                assert len(delta) == mode.delta_len
 
                 for i in range(len(delta)):
                     delta[i] = c_uchar(delta[i] + last_delta)
@@ -1806,16 +1794,16 @@ class ACE:
 
                 delta_plane = 0
                 delta_plane_pos = 0
-                delta_plane_size = delta_len // delta_dist
+                delta_plane_size = mode.delta_len // mode.delta_dist
                 while delta_plane_pos < delta_plane_size:
-                    while delta_plane < delta_len:
+                    while delta_plane < mode.delta_len:
                         outchunk.append(delta[delta_plane + delta_plane_pos])
                         delta_plane += delta_plane_size
                     delta_plane = 0
                     delta_plane_pos += 1
                 # end of ACE.MODE_LZ77_DELTA
 
-            elif mode_type in [ACE.MODE_LZ77_NORM, ACE.MODE_LZ77_EXE]:
+            elif mode.mode in [ACE.MODE_LZ77, ACE.MODE_LZ77_EXE]:
                 if len(exe_leftover) > 0:
                     outchunk.extend(exe_leftover)
                     exe_leftover = []
@@ -1823,15 +1811,14 @@ class ACE:
                         filesize - producedsize - len(outchunk))
                 outchunk.extend(chunk)
 
-                if mode_type == ACE.MODE_LZ77_EXE:
-                    exe_mode = mode_args[0]
+                if mode.mode == ACE.MODE_LZ77_EXE:
                     it = iter(range(len(outchunk)))
                     for i in it:
                         if i + 4 >= len(outchunk):
                             break
                         if outchunk[i] == 0xE8:   # CALL rel16/rel32
                             pos = producedsize + i
-                            if exe_mode == 0:
+                            if mode.exe_mode == 0:
                                 # rel16
                                 assert i + 2 < len(outchunk)
                                 rel16 = outchunk[i+1] + (outchunk[i+2] << 8)
@@ -1870,23 +1857,23 @@ class ACE:
                             exe_leftover = outchunk[i:]
                             outchunk = outchunk[:i]
                     # end of ACE.MODE_LZ77_EXE
-                # end of ACE.MODE_LZ77_NORM or ACE.MODE_LZ77_EXE
+                # end of ACE.MODE_LZ77 or ACE.MODE_LZ77_EXE
 
-            elif mode_type in [ACE.MODE_SOUND_8,   ACE.MODE_SOUND_16,
+            elif mode.mode in [ACE.MODE_SOUND_8,   ACE.MODE_SOUND_16,
                                ACE.MODE_SOUND_32A, ACE.MODE_SOUND_32B]:
                 outchunk, next_mode = self.__sound.read(bs,
                                                         filesize - producedsize)
                 self.__lz77.dic_copy(outchunk)
                 # end of ACE.MODE_SOUND_*
 
-            elif mode_type == ACE.MODE_PIC:
+            elif mode.mode == ACE.MODE_PIC:
                 outchunk, next_mode = self.__pic.read(bs,
                                                       filesize - producedsize)
                 self.__lz77.dic_copy(outchunk)
                 # end of ACE.MODE_PIC
 
             else:
-                raise CorruptedArchiveError("unknown mode type: %i" % mode_type)
+                raise CorruptedArchiveError("unknown mode: %s" % mode)
 
             yield bytes(outchunk)
             producedsize += len(outchunk)
