@@ -1,10 +1,11 @@
 
-### acefile 0.4.4-dev
+### acefile 0.5.0 2017-07-01
 
--   Add initial multi-volume support.
+-   Add multi-volume archive support.
 -   All optional function arguments in the library API must now be passed in
-    keyword syntax, not as positional argument, to ensure extensibility.
--   Added documentation into source packages.
+    keyword syntax, not as positional argument, to ensure future extensibility.
+-   Added documentation files into PyPI package.
+-   Renamed --yes to --batch in the CLI.
 
 
 ### acefile 0.4.3 2017-06-27
