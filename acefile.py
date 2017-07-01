@@ -872,6 +872,34 @@ class EncryptedFileIO:
 
 
 
+class AceMode:
+    """
+    Represent and parse compression submode information from a bitstream.
+    """
+    @classmethod
+    def read(cls, bs):
+        mode = cls(bs.read_bits(8))
+        if mode.mode == ACE.MODE_LZ77_DELTA:
+            mode.delta_dist = bs.read_bits(8)
+            mode.delta_len = bs.read_bits(17)
+        elif mode.mode == ACE.MODE_LZ77_EXE:
+            mode.exe_mode = bs.read_bits(8)
+        return mode
+
+    def __init__(self, mode):
+        self.mode = mode
+
+    def __str__(self):
+        args = ''
+        if self.mode == ACE.MODE_LZ77_DELTA:
+            args = " delta_dist=%i delta_len=%i" % (self.delta_dist,
+                                                    self.delta_len)
+        elif self.mode == ACE.MODE_LZ77_EXE:
+            args = " exe_mode=%i" % self.exe_mode
+        return "%s(%i)%s" % (ACE.mode_str(self.mode), self.mode, args)
+
+
+
 class Huffman:
     """
     Huffman decoder engine.  All methods are static.
@@ -1001,33 +1029,6 @@ class Huffman:
 
         Huffman._make_codes(max_width, num_widths, widths, codes)
         return (codes, widths)
-
-
-class AceMode:
-    """
-    Represent and parse compression submode information from a bitstream.
-    """
-    @classmethod
-    def read(cls, bs):
-        mode = cls(bs.read_bits(8))
-        if mode.mode == ACE.MODE_LZ77_DELTA:
-            mode.delta_dist = bs.read_bits(8)
-            mode.delta_len = bs.read_bits(17)
-        elif mode.mode == ACE.MODE_LZ77_EXE:
-            mode.exe_mode = bs.read_bits(8)
-        return mode
-
-    def __init__(self, mode):
-        self.mode = mode
-
-    def __str__(self):
-        args = ''
-        if self.mode == ACE.MODE_LZ77_DELTA:
-            args = " delta_dist=%i delta_len=%i" % (self.delta_dist,
-                                                    self.delta_len)
-        elif self.mode == ACE.MODE_LZ77_EXE:
-            args = " exe_mode=%i" % self.exe_mode
-        return "%s(%i)%s" % (ACE.mode_str(self.mode), self.mode, args)
 
 
 
