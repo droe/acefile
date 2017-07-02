@@ -877,7 +877,7 @@ class AceMode:
     Represent and parse compression submode information from a bitstream.
     """
     @classmethod
-    def read(cls, bs):
+    def read_from(cls, bs):
         mode = cls(bs.read_bits(8))
         if mode.mode == ACE.MODE_LZ77_DELTA:
             mode.delta_dist = bs.read_bits(8)
@@ -1198,7 +1198,7 @@ class LZ77:
                 self.__symbols.append(symbol, arg1, arg2)
             else:
                 assert symbol == LZ77.TYPECODE
-                self.__symbols.append(symbol, AceMode.read(bs))
+                self.__symbols.append(symbol, AceMode.read_from(bs))
 
     def read(self, bs, want_size):
         """
@@ -1324,7 +1324,7 @@ class Sound:
             if self.__get_state != 2:
                 self.__get_code = self.__sound._get_symbol(bs, self.model())
                 if self.__get_code == Sound.TYPECODE:
-                    return AceMode.read(bs)
+                    return AceMode.read_from(bs)
 
             if self.__get_state == 0:
                 if self.__get_code >= Sound.RUNLENCODES:
@@ -1676,7 +1676,7 @@ class Pic:
             self.__leftover = []
         while len(chunk) < want_size:
             if bs.read_bits(1) == 0:
-                next_mode = AceMode.read(bs)
+                next_mode = AceMode.read_from(bs)
                 break
             data = self._line(bs)
             n = min(want_size - len(chunk), len(data))
