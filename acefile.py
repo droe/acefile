@@ -904,8 +904,6 @@ class Huffman:
     """
     Huffman decoder engine.  All methods are static.
     """
-    MAXWIDTHSVDWD       = 7
-    MAXWIDTHTOSAVE      = 15
 
     class Tree:
         """
@@ -923,6 +921,10 @@ class Huffman:
             symbol = self.codes[bs.peek_bits(self.max_width)]
             bs.skip_bits(self.widths[symbol])
             return symbol
+
+
+    MAXWIDTHSVDWD       = 7
+    MAXWIDTHTOSAVE      = 15
 
     @staticmethod
     def _quicksort(keys, values, count):
@@ -1175,25 +1177,28 @@ class LZ77:
         self.__dictionary = self.__dictionary[-self.__dicsize:]
 
     def _read_syms(self, bs):
+        """
+        Read Huffman trees, block size and a full block of LZ77 Huffman symbols
+        from bit stream *bs* and append them to self.__symbols.
+        """
         main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
         len_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMLENCODES)
         block_size = bs.read_bits(15)
 
         for i in range(block_size):
             symbol = main_tree.read(bs)
-
-            if symbol > 255:
-                if symbol == LZ77.TYPECODE:
-                    self.__symbols.append(symbol, AceMode.read(bs))
-                else:
-                    if symbol > 259:
-                        arg2 = bs.read_knownwidth_uint(symbol - 260)
-                    else:
-                        arg2 = None
-                    arg1 = len_tree.read(bs)
-                    self.__symbols.append(symbol, arg1, arg2)
-            else:
+            if symbol <= 255:
                 self.__symbols.append(symbol)
+            elif symbol <= 259:
+                arg1 = len_tree.read(bs)
+                self.__symbols.append(symbol, arg1)
+            elif symbol < LZ77.TYPECODE:
+                arg2 = bs.read_knownwidth_uint(symbol - 260)
+                arg1 = len_tree.read(bs)
+                self.__symbols.append(symbol, arg1, arg2)
+            else:
+                assert symbol == LZ77.TYPECODE
+                self.__symbols.append(symbol, AceMode.read(bs))
 
     def read(self, bs, want_size):
         """
