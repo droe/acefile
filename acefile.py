@@ -1258,14 +1258,9 @@ class LZ77:
                         copy_len += 2
                 copy_dist += 1
                 source_pos = len(self.__dictionary) - copy_dist
-                zero_filled = 0
                 if source_pos < 0:
-                    for i in range(copy_dist - len(self.__dictionary)):
-                        self.__dictionary.append(0)
-                        have_size += 1
-                        source_pos += 1
-                        copy_len -= 1
-                        zero_filled += 1
+                    raise CorruptedArchiveError("copy from out of bounds")
+                # copy needs to be byte-wise for overlapping src and dst
                 for i in range(source_pos, source_pos + copy_len):
                     self.__dictionary.append(self.__dictionary[i])
                     have_size += 1
