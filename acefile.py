@@ -794,7 +794,9 @@ class EncryptedFileIO:
 
     def _bf_cbc_decrypt(self, buf):
         """
-        Decrypt a buffer in CBC mode with an IV of all zeroes.
+        Decrypt a buffer in CBC mode with an IV of all zeroes on the first
+        call, and an IV of the last ciphertext block on subsequent calls.
+        Does not remove any padding.
         """
         assert len(buf) % 8 == 0
         out = []
