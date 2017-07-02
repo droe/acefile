@@ -1249,7 +1249,7 @@ class LZ77:
                         copy_len += 4
                 else:
                     offset = sym.symbol & 0xFF
-                    copy_dist = self.__disthist.retrieve(sym.symbol & 0xFF)
+                    copy_dist = self.__disthist.retrieve(offset)
                     if offset > 1:
                         copy_len += 3
                     else:
@@ -3089,7 +3089,7 @@ def unace():
                    f.mtime.strftime('%Y-%m-%d %H:%M:%S'),
                    f.cversion/10, f.eversion/10))
             if f.advert:
-                eprint("by %s" % f.advert)
+                eprint("by", f.advert)
             if f.is_multivolume() and f.volume > 0:
                 eprint("warning: this is not the initial volume of this "
                        "multi-volume archive")
