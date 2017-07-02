@@ -1,8 +1,8 @@
 
-### acefile 0.5.1-dev
+### acefile 0.5.1 2017-07-02
 
--   Fix regression that broke extraction but not testing by yielding bytes,
-    not lists of chars.
+-   Fix regression that broke extraction when directly writing the yielded
+    chunks to files.
 
 
 ### acefile 0.5.0 2017-07-01
