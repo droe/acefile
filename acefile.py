@@ -2253,7 +2253,7 @@ class AceInfo:
 
     def _add_header(self, hdr):
         """
-        For multivolume archives, add continuing header from next volume to
+        For multi-volume archives, add continuing header from next volume to
         this AceInfo object, updating the attributes that have to be modified
         to reflect all segments seen.
         """
@@ -2611,7 +2611,8 @@ class AceFile:
 
         # For solid archives, ensure the LZ77 state corresponds to the state
         # after extracting the previous file by re-starting extraction from
-        # the beginning or the last extracted file.
+        # the beginning or the last extracted file.  This is what makes out
+        # of order access to solid archive members prohibitively slow.
         if self.is_solid() and self.__next_read_idx != ai._idx:
             if self.__next_read_idx < ai._idx:
                 restart_idx = self.__next_read_idx
@@ -2622,11 +2623,11 @@ class AceFile:
                     raise CorruptedArchiveError()
 
         if (not hdr.attrib(Header.ATTR_DIRECTORY)) and hdr.origsize > 0:
-            # for multivolume archives which continue in the next volume,
-            # collect all file segments belonging to the file, wrap each
-            # into a FileSegmentIO object and wrap all of those in a
-            # MultipleFilesIO object giving a single file view over all the
-            # required segments.
+            # for multi-volume archive members which continue in the next
+            # volume, collect all file segments belonging to the member,
+            # wrap each into a FileSegmentIO object and wrap all of those in a
+            # MultipleFilesIO object giving a single file-like view over all
+            # the required file segments.
             if self.__main_header.flag(Header.FLAG_MULTIVOLUME) and \
                hdr.flag(Header.FLAG_CONTNEXT):
                 ai._af.__file.seek(hdr.dataoffset, 0)
@@ -2747,7 +2748,7 @@ class AceFile:
 
     def is_multivolume(self):
         """
-        Return True iff archive is part of a multivolume archive set.
+        Return True iff archive is part of a multi-volume archive set.
         """
         return self.__main_header.flag(Header.FLAG_MULTIVOLUME)
 
@@ -2783,8 +2784,8 @@ class AceFile:
     @property
     def volume(self):
         """
-        Archive volume number.  Should be 0 for non-multivolume archives,
-        ranges from 0 to n-1 for multivolume archives with n volumes, where
+        Archive volume number.  Should be 0 for non-multi-volume archives,
+        ranges from 0 to n-1 for multi-volume archives with n volumes, where
         0 is the initial volume.  Note that under normal circumstances, this
         will always be 0 in the public API, only when AceFile objects are
         used to represent later volumes internally, this is > 0.  It is
