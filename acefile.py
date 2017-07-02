@@ -865,6 +865,8 @@ class EncryptedFileIO:
         if want_bytes & 0x7:
             read_bytes += 8 - (want_bytes & 0x7)
         buf = self.__file.read(read_bytes)
+        if len(buf) & 0x7:
+            raise TruncatedArchiveError()
         buf = self._bf_cbc_decrypt(buf)
         rbuf = self.__buffer + buf[:n]
         self.__buffer = buf[n:]
