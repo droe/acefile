@@ -62,6 +62,7 @@ import datetime
 import io
 import math
 import os
+import re
 import struct
 import sys
 
@@ -2247,8 +2248,13 @@ class AceMember:
             filename = filename.replace('/', os.sep)
         elif os.sep != '\\':
             filename = filename.replace('\\', os.sep)
-        # eliminate ../ sequences to avoid path traversal attacks
-        filename = filename.replace('..' + os.sep, '')
+        # first eliminate all /./, foo/../ and similar sequences, then remove
+        # all remaining .. labels in order to avoid path traversal attacks but
+        # still allow a safe subset of dot syntax in the filename
+        filename = os.path.normpath(filename)
+        escsep = re.escape(os.sep)
+        pattern = r'(^|%s)(?:\.\.(?:%s|$))+' % (escsep, escsep)
+        filename = re.sub(pattern, r'\1', filename)
         return filename
 
     def _add_header(self, hdr):

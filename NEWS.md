@@ -4,6 +4,7 @@
 -   Renamed AceFile to AceArchive, but AceFile is still available as an alias.
 -   Hidden AceInfo class from the API, it is still there but not in __all__.
 -   Added all exceptions to the API.
+-   Improved filename sanitization.
 
 
 ### acefile 0.5.1 2017-07-02
