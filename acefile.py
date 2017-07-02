@@ -907,7 +907,9 @@ class Huffman:
 
     class Tree:
         """
-        Huffman tree reconstructed from bitstream.
+        Huffman tree reconstructed from bitstream, internally represented by
+        a table mapping (length-extended) codes to symbols and a table mapping
+        symbols to bit widths.
         """
         def __init__(self, codes, widths, max_width):
             self.codes = codes
@@ -916,21 +918,24 @@ class Huffman:
 
         def read_symbol(self, bs):
             """
-            Read a single Huffman symbol from bit stream *bs*.
+            Read a single Huffman symbol from bit stream *bs* by peeking the
+            maximum code length in bits from the bit stream, looking up the
+            symbol and its width, and finally skipping the actual width of
+            the code for the symbol in the bit stream.
             """
             symbol = self.codes[bs.peek_bits(self.max_width)]
             bs.skip_bits(self.widths[symbol])
             return symbol
 
 
-    MAXWIDTHSVDWD       = 7
-    MAXWIDTHTOSAVE      = 15
+    WIDTHWIDTHBITS      = 3
+    MAXWIDTHWIDTH       = (1 << WIDTHWIDTHBITS) - 1
 
     @staticmethod
-    def _quicksort(keys, values, count):
+    def _quicksort(keys, values):
         """
-        In-place quicksort implementation yielding the correct order even
-        between the symbols that have identical frequencies.
+        In-place quicksort of lists *keys* and *values* in descending order of
+        *keys*.
         """
         def _quicksort_subrange(left, right):
             def _list_swap(_list, a, b):
@@ -966,38 +971,43 @@ class Huffman:
                         _list_swap(keys,   new_left, right)
                         _list_swap(values, new_left, right)
 
-        _quicksort_subrange(0, count - 1)
+        assert len(keys) == len(values)
+        _quicksort_subrange(0, len(keys) - 1)
 
     @staticmethod
-    def _make_codes(max_width, count, widths, codes):
-        frequencies = list(widths)
-        elements    = list(range(len(widths)))
+    def _make_tree(widths, max_width):
+        """
+        Calculate the list of Huffman codes corresponding to the symbols
+        implicitly described by the list of *widths* and maximal width
+        *max_width*, and return a Huffman.Tree object representing the
+        resulting Huffman tree.
+        """
+        sorted_symbols  = list(range(len(widths)))
+        sorted_widths   = list(widths)
+        Huffman._quicksort(sorted_widths, sorted_symbols)
 
-        Huffman._quicksort(frequencies, elements, count)
+        used = 0
+        while used < len(sorted_widths) and sorted_widths[used] != 0:
+            used += 1
 
-        actual_size = 0
-        while actual_size < len(frequencies) and frequencies[actual_size] != 0:
-            actual_size += 1
+        if used < 2:
+            widths[sorted_symbols[0]] = 1
+            if used == 0:
+                used += 1
+        del sorted_symbols[used:]
+        del sorted_widths[used:]
 
-        if actual_size < 2:
-            widths[elements[0]] = 1
-            if actual_size == 0:
-                actual_size += 1
-
-        max_code_pos = 1 << max_width
-        code_pos = 0
-        i = actual_size - 1
-        while i >= 0 and code_pos < max_code_pos:
-            if frequencies[i] > max_width:
+        codes = []
+        max_codes = 1 << max_width
+        for sym, wdt in zip(reversed(sorted_symbols), reversed(sorted_widths)):
+            if wdt > max_width:
                 raise CorruptedArchiveError("frequencies[i] > max_width")
-            num_codes = 1 << (max_width - frequencies[i])
-            code = elements[i]
-            if code_pos + num_codes > max_code_pos:
-                raise CorruptedArchiveError("code_pos+num_codes>max_code_pos")
-            for j in range(code_pos, code_pos + num_codes):
-                codes[j] = code
-            code_pos += num_codes
-            i -= 1
+            repeat = 1 << (max_width - wdt)
+            codes.extend([sym] * repeat)
+            if len(codes) > max_codes:
+                raise CorruptedArchiveError("len(codes) > (1 << max_width)")
+
+        return Huffman.Tree(codes, widths, max_width)
 
     @staticmethod
     def read_tree(bs, max_width, num_codes):
@@ -1005,50 +1015,40 @@ class Huffman:
         Read a Huffman tree consisting of codes and their widths from
         BitStream *bs*.  The caller specifies the maximum width of a single
         code *max_width* and the number of codes *num_codes*; these are
-        required to reconstruct the Huffman tree.
+        required to reconstruct the Huffman tree from the widths stored in
+        the bit stream.
         """
-        codes = [0] * (1 << max_width)
-        widths = [0] * (num_codes + 1)
-
         num_widths = bs.read_bits(9) + 1
         if num_widths > num_codes + 1:
             num_widths = num_codes + 1
         lower_width = bs.read_bits(4)
         upper_width = bs.read_bits(4)
 
-        save_widths = [0] * (Huffman.MAXWIDTHTOSAVE + 1)
-        for i in range(upper_width + 1):
-            save_widths[i] = bs.read_bits(3)
-        Huffman._make_codes(Huffman.MAXWIDTHSVDWD,
-                            upper_width + 1,
-                            save_widths,
-                            codes)
+        width_widths = []
+        width_num_widths = upper_width + 1
+        for i in range(width_num_widths):
+            width_widths.append(bs.read_bits(Huffman.WIDTHWIDTHBITS))
+        width_tree = Huffman._make_tree(width_widths, Huffman.MAXWIDTHWIDTH)
 
-        width_pos = 0
-        while width_pos < num_widths:
-            code = codes[bs.peek_bits(Huffman.MAXWIDTHSVDWD)]
-            bs.skip_bits(save_widths[code])
-
-            if code < upper_width:
-                widths[width_pos] = code
-                width_pos += 1
+        widths = []
+        while len(widths) < num_widths:
+            symbol = width_tree.read_symbol(bs)
+            if symbol < upper_width:
+                widths.append(symbol)
             else:
                 length = bs.read_bits(4) + 4
-                while length > 0 and width_pos < num_widths:
-                    widths[width_pos] = 0
-                    width_pos += 1
-                    length -= 1
+                length = min(length, num_widths - len(widths))
+                widths.extend([0] * length)
 
         if upper_width > 0:
-            for i in range(1, num_widths):
+            for i in range(1, len(widths)):
                 widths[i] = (widths[i] + widths[i - 1]) % upper_width
 
-        for i in range(num_widths):
+        for i in range(len(widths)):
             if widths[i] > 0:
                 widths[i] += lower_width
 
-        Huffman._make_codes(max_width, num_widths, widths, codes)
-        return Huffman.Tree(codes, widths, max_width)
+        return Huffman._make_tree(widths, max_width)
 
 
 
