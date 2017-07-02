@@ -819,10 +819,8 @@ class EncryptedFileIO:
         state = []
         state.extend(struct.unpack('<15L', buf))
         state.append(len(pwd) << 3)
-        assert len(state) == 16
         for i in range(len(state), 80):
             state.append(state[i-16] ^ state[i-14] ^ state[i-8] ^ state[i-3])
-        assert len(state) == 80
         a = self.SHA1_A
         b = self.SHA1_B
         c = self.SHA1_C
@@ -1798,9 +1796,9 @@ class ACE:
                                                  mode.delta_len - len(delta))
                     delta.extend(chunk)
                     if nm != None:
-                        assert next_mode == None
+                        if next_mode:
+                            raise CorruptedArchiveError()
                         next_mode = nm
-                assert len(delta) == mode.delta_len
 
                 for i in range(len(delta)):
                     delta[i] = c_uchar(delta[i] + last_delta)
@@ -1834,7 +1832,7 @@ class ACE:
                             pos = producedsize + i
                             if mode.exe_mode == 0:
                                 # rel16
-                                assert i + 2 < len(outchunk)
+                                #assert i + 2 < len(outchunk)
                                 rel16 = outchunk[i+1] + (outchunk[i+2] << 8)
                                 rel16 = (rel16 - pos) & 0xFFFF
                                 outchunk[i+1] =  rel16       & 0xFF
@@ -1842,7 +1840,7 @@ class ACE:
                                 next(it); next(it)
                             else:
                                 # rel32
-                                assert i + 4 < len(outchunk)
+                                #assert i + 4 < len(outchunk)
                                 rel32 =  outchunk[i+1]        + \
                                         (outchunk[i+2] <<  8) + \
                                         (outchunk[i+3] << 16) + \
@@ -1856,7 +1854,7 @@ class ACE:
                         elif outchunk[i] == 0xE9: # JMP  rel16/rel32
                             pos = producedsize + i
                             # rel16
-                            assert i + 2 < len(outchunk)
+                            #assert i + 2 < len(outchunk)
                             rel16 = outchunk[i+1] + (outchunk[i+2] << 8)
                             rel16 = (rel16 - pos) & 0xFFFF
                             outchunk[i+1] =  rel16       & 0xFF
@@ -1866,7 +1864,7 @@ class ACE:
                     # changing between different exe modes after the opcode
                     # but before completing the machine instruction
                     for i in it:
-                        assert i + 4 >= len(outchunk)
+                        #assert i + 4 >= len(outchunk)
                         if outchunk[i] == 0xE8 or outchunk[i] == 0xE9:
                             exe_leftover = outchunk[i:]
                             outchunk = outchunk[:i]
