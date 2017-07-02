@@ -904,7 +904,7 @@ class AceMode:
 
 class Huffman:
     """
-    Huffman decoder engine.  All methods are static.
+    Huffman decoder engine.
     """
 
     class Tree:
@@ -1178,16 +1178,16 @@ class LZ77:
         """
         self.__dictionary = self.__dictionary[-self.__dicsize:]
 
-    def _read_syms(self, bs):
+    def _read_symbols(self, bs):
         """
-        Read Huffman trees, block size and a full block of LZ77 Huffman symbols
-        from bit stream *bs* and append them to self.__symbols.
+        Read Huffman trees, block size and a full block of LZ77 symbols from
+        bit stream *bs* and append them to self.__symbols.
         """
         main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
-        len_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMLENCODES)
-        block_size = bs.read_bits(15)
+        len_tree  = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMLENCODES)
+        blocksize = bs.read_bits(15)
 
-        for i in range(block_size):
+        for i in range(blocksize):
             symbol = main_tree.read_symbol(bs)
             if symbol <= 255:
                 self.__symbols.append(symbol)
@@ -1199,7 +1199,7 @@ class LZ77:
                 arg1 = len_tree.read_symbol(bs)
                 self.__symbols.append(symbol, arg1, arg2)
             else:
-                assert symbol == LZ77.TYPECODE
+                #assert symbol == LZ77.TYPECODE
                 self.__symbols.append(symbol, AceMode.read_from(bs))
 
     def read(self, bs, want_size):
@@ -1229,7 +1229,7 @@ class LZ77:
                     # to fix this, ensure caller handles zero length chunk
                     # by immediately switching modes in the DELTA reading loop
                     break
-                self._read_syms(bs)
+                self._read_symbols(bs)
                 continue
 
             sym = next(self.__symbols)
@@ -1715,16 +1715,16 @@ class ACE:
             return '?'
 
     def __init__(self):
-        self.__lz77 = LZ77()
+        self.__lz77  = LZ77()
         self.__sound = Sound()
-        self.__pic = Pic()
+        self.__pic   = Pic()
 
     def decompress_stored(self, f, filesize, params):
         """
         Decompress data compressed using the store method from file-like-object
         *f* containing compressed bytes that will be decompressed to *filesize*
         bytes.  Decompressed data will be yielded in blocks of undefined size
-        upon availability.
+        upon availability.  Empty files will return without yielding anything.
         """
         self.__lz77.set_dicbits((params & 15) + 10)
         producedsize = 0
