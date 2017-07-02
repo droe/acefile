@@ -1248,7 +1248,7 @@ class LZ77:
                     else:
                         copy_len += 4
                 else:
-                    offset = sym.symbol & 0xFF
+                    offset = sym.symbol & 0x03
                     copy_dist = self.__disthist.retrieve(offset)
                     if offset > 1:
                         copy_len += 3
