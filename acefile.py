@@ -914,7 +914,7 @@ class Huffman:
             self.widths = widths
             self.max_width = max_width
 
-        def read(self, bs):
+        def read_symbol(self, bs):
             """
             Read a single Huffman symbol from bit stream *bs*.
             """
@@ -1186,15 +1186,15 @@ class LZ77:
         block_size = bs.read_bits(15)
 
         for i in range(block_size):
-            symbol = main_tree.read(bs)
+            symbol = main_tree.read_symbol(bs)
             if symbol <= 255:
                 self.__symbols.append(symbol)
             elif symbol <= 259:
-                arg1 = len_tree.read(bs)
+                arg1 = len_tree.read_symbol(bs)
                 self.__symbols.append(symbol, arg1)
             elif symbol < LZ77.TYPECODE:
                 arg2 = bs.read_knownwidth_uint(symbol - 260)
-                arg1 = len_tree.read(bs)
+                arg1 = len_tree.read_symbol(bs)
                 self.__symbols.append(symbol, arg1, arg2)
             else:
                 assert symbol == LZ77.TYPECODE
@@ -1453,7 +1453,7 @@ class Sound:
         if self.__blocksize == 0:
             self._read_trees(bs)
         self.__blocksize -= 1
-        return self.__huff_trees[model].read(bs)
+        return self.__huff_trees[model].read_symbol(bs)
 
     def read(self, bs, want_size):
         """
@@ -2829,7 +2829,7 @@ class AceFile:
                 htab[hval] = len(comment)
             else:
                 source_pos = 0
-            code = huff_tree.read(bs)
+            code = huff_tree.read_symbol(bs)
             if code < 256:
                 comment.append(code)
             else:
