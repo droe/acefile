@@ -2068,8 +2068,8 @@ class MainHeader(Header):
     def __str__(self):
         return super().__str__() + """
     magic       %s
-    eversion    %i
-    cversion    %i
+    eversion    %i          %s
+    cversion    %i          %s
     host        0x%02x        %s
     volume      %i
     datetime    0x%08x  %s
@@ -2078,8 +2078,8 @@ class MainHeader(Header):
     comment     %r
     reserved2   %r""" % (
                 self.magic,
-                self.eversion,
-                self.cversion,
+                self.eversion, self.eversion/10,
+                self.cversion, self.cversion/10,
                 self.host, self.host_str,
                 self.volume,
                 self.datetime,
@@ -3085,8 +3085,9 @@ def unace():
     with open(archive) as f:
         if args.verbose:
             eprint("processing archive %s" % f.filename)
-            eprint("created on %s with version %i (extract with %i+)" % (
-                f.mtime.strftime('%Y-%m-%d %H:%M:%S'), f.cversion, f.eversion))
+            eprint("created on %s with version %s (extract with %s+)" % (
+                   f.mtime.strftime('%Y-%m-%d %H:%M:%S'),
+                   f.cversion/10, f.eversion/10))
             if f.advert:
                 eprint("by %s" % f.advert)
             if f.is_multivolume() and f.volume > 0:
