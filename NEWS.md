@@ -1,5 +1,5 @@
 
-### acefile 0.5.2-dev
+### acefile 0.5.2 2017-07-03
 
 -   Renamed AceFile to AceArchive, but AceFile is still available as an alias.
 -   Hidden AceInfo class from the API, it is still there but not in __all__.
