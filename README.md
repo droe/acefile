@@ -55,13 +55,13 @@ Walk all files in the archive and test each one of them:
 
     import acefile
     with acefile.open('example.ace') as f:
-        for ai in f.getmembers():
+        for member in f.getmembers():
             if f.is_dir():
                 continue
             if f.test(ai):
-                print("CRC OK:    %s" % ai.filename)
+                print("CRC OK:    %s" % member.filename)
             else:
-                print("CRC FAIL:  %s" % ai.filename)
+                print("CRC FAIL:  %s" % member.filename)
 
 In-memory decompression of a specific archive member:
 
