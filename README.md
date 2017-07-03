@@ -58,7 +58,7 @@ Walk all files in the archive and test each one of them:
         for member in f.getmembers():
             if f.is_dir():
                 continue
-            if f.test(ai):
+            if f.test(member):
                 print("CRC OK:    %s" % member.filename)
             else:
                 print("CRC FAIL:  %s" % member.filename)
