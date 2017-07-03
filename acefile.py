@@ -68,6 +68,13 @@ import sys
 
 
 
+# arbitrarily chosen buffer size to use for buffered file operations that
+# have no obvious natural block size
+FILE_BLOCKSIZE = 131072
+assert FILE_BLOCKSIZE % 4 == 0
+
+
+
 def eprint(*args, **kwargs):
     """
     Print to stderr.
@@ -160,248 +167,48 @@ def asciibox(msg, title=None, minwidth=None):
 
 
 
-# arbitrarily chosen buffer size to use for file operations
-FILE_BLOCKSIZE = 131072
-assert FILE_BLOCKSIZE % 4 == 0
-
-
-
-def classinit_crctab(cls):
-    """
-    Decorator that calculates a CRC table and stores it in the class.
-    This ensures that the table is calculated exactly once.
-    """
-    cls._crctab = []
-    for i in range(256):
-        hval = i
-        for j in range(8):
-            if hval & 1:
-                hval = (hval >> 1) ^ 0xEDB88320
-            else:
-                hval >>= 1
-        cls._crctab.append(hval)
-    return cls
-
-@classinit_crctab
-class AceCRC32:
-    """
-    Calculate an ACE CRC-32 checksum.
-
-    Even though ACE CRC-32 uses the standard CRC-32 polynomial in reversed
-    notation, the algorithm produces different results than standard CRC-32 as
-    used by PKZIP and other formats.
-    """
-
-    def __init__(self, buf=b''):
-        """
-        Initialize and add bytes in *buf* into checksum.
-        """
-        self.crc32 = 0xFFFFFFFF
-        if len(buf) > 0:
-            self += buf
-
-    def __iadd__(self, buf):
-        """
-        Adding a buffer of bytes into the checksum, updating the rolling
-        checksum from all previously added buffers.
-        """
-        crc32 = self.crc32
-        for c in buf:
-            crc32 = self._crctab[(crc32 ^ c) & 0xFF] ^ (crc32 >> 8)
-        self.crc32 = crc32
-        return self
-
-    def __eq__(self, other):
-        """
-        Compare the checksum to a fixed value or another ACE CRC32 object.
-        """
-        return self.sum == other
-
-    def __format__(self, format_spec):
-        """
-        Format the checksum for printing.
-        """
-        return self.sum.__format__(format_spec)
-
-    def __str__(self):
-        """
-        String representation of object is hex value of checksum.
-        """
-        return "0x%08x" % self.sum
-
-    @property
-    def sum(self):
-        """
-        The checksum.
-        """
-        return self.crc32
-
-class AceCRC16(AceCRC32):
-    """
-    Calculate an ACE CRC-16 checksum, which is actually just the lower 16 bits
-    of an ACE CRC-32.
-    """
-    @property
-    def sum(self):
-        """
-        The checksum.
-        """
-        return self.crc32 & 0xFFFF
-
-def ace_crc32(buf):
-    """
-    Return the ACE CRC-32 checksum of the bytes in *buf*.
-    """
-    return AceCRC32(buf).sum
-
-def ace_crc16(buf):
-    """
-    Return the ACE CRC-16 checksum of the bytes in *buf*.
-    """
-    return AceCRC16(buf).sum
-
-
-
-class BitStream:
-    """
-    Intel-endian 32bit-byte-swapped, MSB first bitstream, reading
-    from a file-like object.
-    """
-    class Depleted(Exception):
-        """
-        Raised when an attempt is made to read beyond the available data.
-        """
-        pass
-
-    @staticmethod
-    def _getbits(value, start, length):
-        """
-        Return *length* bits from byte *value*, starting at position *start*.
-        Behaviour is undefined for start < 0, length < 0 or start + length > 32.
-        """
-        #assert start >= 0 and length >= 0 and start + length <= 32
-        mask = ((0xFFFFFFFF << (32 - length)) & 0xFFFFFFFF) >> start
-        return (value & mask) >> (32 - length - start)
-
-    def __init__(self, f):
-        """
-        Initialize BitStream reading from file-like object *f* until EOF,
-        after which there is a maximum of 32 bits zero padding added.
-        """
-        self.__file = f
-        self.__buf = array.array('I')
-        self.__len = 0                  # in bits
-        self.__pos = 0                  # in bits
-        self._refill()
-
-    def _refill(self):
-        """
-        Refill the internal buffer with data read from file.
-        """
-        tmpbuf = self.__file.read(FILE_BLOCKSIZE)
-        if len(tmpbuf) == 0:
-            raise BitStream.Depleted()
-        if len(tmpbuf) % 4 != 0:
-            raise CorruptedArchiveError("len(tmpbuf) % 4 != 0")
-
-        newbuf = self.__buf[-1:]
-        for i in range(0, len(tmpbuf), 4):
-            newbuf.append(struct.unpack('<L', tmpbuf[i:i+4])[0])
-        if len(tmpbuf) < FILE_BLOCKSIZE:
-            newbuf.append(0)
-        if self.__pos > 0:
-            self.__pos -= (self.__len - 32)
-        self.__buf = newbuf
-        self.__len = 32 * len(newbuf)
-
-    def skip_bits(self, bits):
-        """
-        Skip *bits* bits in the stream.
-        """
-        if self.__pos + bits > self.__len:
-            self._refill()
-        self.__pos += bits
-
-    def peek_bits(self, bits):
-        """
-        Peek at next *bits* bits in the stream without incrementing position.
-        """
-        if self.__pos + bits > self.__len:
-            self._refill()
-
-        peeked = min(bits, 32 - (self.__pos % 32))
-        res = self._getbits(self.__buf[self.__pos // 32],
-                            self.__pos % 32, peeked)
-        while bits - peeked >= 32:
-            res <<= 32
-            res += self.__buf[(self.__pos + peeked) // 32]
-            peeked += 32
-        if bits - peeked > 0:
-            res <<= bits - peeked
-            res += self._getbits(self.__buf[(self.__pos + peeked) // 32],
-                                 0, bits - peeked)
-        return res
-
-    def read_bits(self, bits):
-        """
-        Read *bits* bits from bitstream and increment position accordingly.
-        """
-        value = self.peek_bits(bits)
-        self.skip_bits(bits)
-        return value
-
-    def read_golomb_rice(self, r_bits, signed=False):
-        """
-        Read a Golomb-Rice code with *r_bits* remainder bits and an arbitrary
-        number of quotient bits from bitstream and return the represented
-        value.  Iff *signed* is True, interpret the lowest order bit as sign
-        bit and return a signed integer.
-        """
-        if r_bits == 0:
-            value = 0
-        else:
-            assert r_bits > 0
-            value = self.read_bits(r_bits)
-        while self.read_bits(1) == 1:
-            value += 1 << r_bits
-        if signed == False:
-            return value
-        if value & 1:
-            return - (value >> 1) - 1
-        else:
-            return value >> 1
-
-    def read_knownwidth_uint(self, bits):
-        """
-        Read an unsigned integer with previously known bit width *bits* from
-        stream.  The most significant bit is not encoded in the bit stream,
-        because it is always 1.
-        """
-        if bits < 2:
-            return bits
-        bits -= 1
-        return self.read_bits(bits) + (1 << bits)
-
-
-
 class FileSegmentIO:
     """
-    Non-seekable file-like object that wraps and reads from seekable file-like
+    Seekable file-like object that wraps and reads from seekable file-like
     object and fakes EOF when a read would extend beyond a defined boundary.
     """
-    def __init__(self, f, size):
+    def __init__(self, f, base, size):
         assert f.seekable()
         self.__file = f
-        self.__eof = f.tell() + size
+        self.__base = base
+        self.__eof = base + size
 
-    def seekable():
-        return False
+    def seekable(self):
+        return True
+
+    def _tell(self):
+        """
+        Returns the current absolute position in the file and asserts that it
+        lies within the defined file segment.
+        """
+        pos = self.__file.tell()
+        assert pos >= self.__base and pos <= self.__eof
+        return pos
+
+    def tell(self):
+        return self._tell() - self.__base
+
+    def seek(self, offset, whence=0):
+        if whence == 0:
+            newpos = self.__base + offset
+        elif whence == 1:
+            newpos = self._tell() + offset
+        elif whence == 2:
+            newpos = self.__eof + offset
+        assert newpos >= self.__base and newpos <= self.__eof
+        self.__file.seek(newpos, 0)
 
     def read(self, n=None):
+        pos = self._tell()
         if n == None:
-            amount = self.__eof - self.__file.tell()
+            amount = self.__eof - pos
         else:
-            amount = min(n, self.__eof - self.__file.tell())
+            amount = min(n, self.__eof - pos)
         if amount == 0:
             return b''
         return self.__file.read(amount)
@@ -410,32 +217,53 @@ class FileSegmentIO:
 
 class MultipleFilesIO:
     """
-    Non-seekable file-like object that wraps and reads from multiple
-    lower-level file-like objects of undetermined seekability.
+    Seekable file-like object that wraps and reads from multiple
+    seekable lower-level file-like objects.
     """
     def __init__(self, files):
-        """
-        Initialize file-like object looping over *files*.
-        """
         assert len(files) > 0
         self.__files = files
-        self.__index = 0
+        self.__sizes = []
+        for f in files:
+            f.seek(0, 2)
+            self.__sizes.append(f.tell())
+        self.__idx = 0
+        self.__pos = 0
+        self.__eof = sum(self.__sizes)
 
     def seekable():
-        return False
+        return True
+
+    def tell(self):
+        return self.__pos
+
+    def seek(self, offset, whence=0):
+        if whence == 0:
+            newpos = offset
+        elif whence == 1:
+            newpos = self.__pos + offset
+        elif whence == 2:
+            newpos = self.__eof + offset
+        assert newpos >= 0 and newpos <= self.__eof
+        idx = 0
+        relpos = newpos
+        while relpos >= self.__sizes[idx]:
+            relpos -= self.__sizes[idx]
+            idx += 1
+        self.__files[idx].seek(relpos)
+        self.__idx = idx
 
     def read(self, n):
-        """
-        Read from the file-like object.
-        """
         out = []
         have_size = 0
         while have_size < n:
-            if self.__index >= len(self.__files):
+            if self.__idx >= len(self.__files):
                 break
-            chunk = self.__files[self.__index].read(n - have_size)
+            chunk = self.__files[self.__idx].read(n - have_size)
             if len(chunk) == 0:
-                self.__index += 1
+                self.__idx += 1
+                if self.__idx < len(self.__files):
+                    self.__files[self.__idx].seek(0)
                 continue
             out.append(chunk)
             have_size += len(chunk)
@@ -446,7 +274,7 @@ class MultipleFilesIO:
 class EncryptedFileIO:
     """
     Non-seekable file-like object that reads from a lower-level file-like
-    object and transparently decrypts the data stream.
+    object and transparently decrypts the data stream using ACE Blowfish.
     """
 
     SHA1_A = 0x67452301
@@ -854,9 +682,6 @@ class EncryptedFileIO:
         return False
 
     def read(self, n):
-        """
-        Read *n* bytes from the decrypted file.
-        """
         if n < len(self.__buffer):
             rbuf = self.__buffer[:n]
             self.__buffer = self.__buffer[n:]
@@ -872,6 +697,224 @@ class EncryptedFileIO:
         rbuf = self.__buffer + buf[:n]
         self.__buffer = buf[n:]
         return rbuf
+
+
+
+def classinit_crctab(cls):
+    """
+    Decorator that calculates a CRC table and stores it in the class.
+    This ensures that the table is calculated exactly once.
+    """
+    cls._crctab = []
+    for i in range(256):
+        hval = i
+        for j in range(8):
+            if hval & 1:
+                hval = (hval >> 1) ^ 0xEDB88320
+            else:
+                hval >>= 1
+        cls._crctab.append(hval)
+    return cls
+
+@classinit_crctab
+class AceCRC32:
+    """
+    Calculate an ACE CRC-32 checksum.
+
+    Even though ACE CRC-32 uses the standard CRC-32 polynomial in reversed
+    notation, the algorithm produces different results than standard CRC-32 as
+    used by PKZIP and other formats.
+    """
+
+    def __init__(self, buf=b''):
+        """
+        Initialize and add bytes in *buf* into checksum.
+        """
+        self.crc32 = 0xFFFFFFFF
+        if len(buf) > 0:
+            self += buf
+
+    def __iadd__(self, buf):
+        """
+        Adding a buffer of bytes into the checksum, updating the rolling
+        checksum from all previously added buffers.
+        """
+        crc32 = self.crc32
+        for c in buf:
+            crc32 = self._crctab[(crc32 ^ c) & 0xFF] ^ (crc32 >> 8)
+        self.crc32 = crc32
+        return self
+
+    def __eq__(self, other):
+        """
+        Compare the checksum to a fixed value or another ACE CRC32 object.
+        """
+        return self.sum == other
+
+    def __format__(self, format_spec):
+        """
+        Format the checksum for printing.
+        """
+        return self.sum.__format__(format_spec)
+
+    def __str__(self):
+        """
+        String representation of object is hex value of checksum.
+        """
+        return "0x%08x" % self.sum
+
+    @property
+    def sum(self):
+        """
+        The checksum.
+        """
+        return self.crc32
+
+class AceCRC16(AceCRC32):
+    """
+    Calculate an ACE CRC-16 checksum, which is actually just the lower 16 bits
+    of an ACE CRC-32.
+    """
+    @property
+    def sum(self):
+        """
+        The checksum.
+        """
+        return self.crc32 & 0xFFFF
+
+def ace_crc32(buf):
+    """
+    Return the ACE CRC-32 checksum of the bytes in *buf*.
+    """
+    return AceCRC32(buf).sum
+
+def ace_crc16(buf):
+    """
+    Return the ACE CRC-16 checksum of the bytes in *buf*.
+    """
+    return AceCRC16(buf).sum
+
+
+
+class BitStream:
+    """
+    Intel-endian 32bit-byte-swapped, MSB first bitstream, reading
+    from a file-like object.
+    """
+    class Depleted(Exception):
+        """
+        Raised when an attempt is made to read beyond the available data.
+        """
+        pass
+
+    @staticmethod
+    def _getbits(value, start, length):
+        """
+        Return *length* bits from byte *value*, starting at position *start*.
+        Behaviour is undefined for start < 0, length < 0 or start + length > 32.
+        """
+        #assert start >= 0 and length >= 0 and start + length <= 32
+        mask = ((0xFFFFFFFF << (32 - length)) & 0xFFFFFFFF) >> start
+        return (value & mask) >> (32 - length - start)
+
+    def __init__(self, f):
+        """
+        Initialize BitStream reading from file-like object *f* until EOF,
+        after which there is a maximum of 32 bits zero padding added.
+        """
+        self.__file = f
+        self.__buf = array.array('I')
+        self.__len = 0                  # in bits
+        self.__pos = 0                  # in bits
+        self._refill()
+
+    def _refill(self):
+        """
+        Refill the internal buffer with data read from file.
+        """
+        tmpbuf = self.__file.read(FILE_BLOCKSIZE)
+        if len(tmpbuf) == 0:
+            raise BitStream.Depleted()
+        if len(tmpbuf) % 4 != 0:
+            raise CorruptedArchiveError("len(tmpbuf) % 4 != 0")
+
+        newbuf = self.__buf[-1:]
+        for i in range(0, len(tmpbuf), 4):
+            newbuf.append(struct.unpack('<L', tmpbuf[i:i+4])[0])
+        if len(tmpbuf) < FILE_BLOCKSIZE:
+            newbuf.append(0)
+        if self.__pos > 0:
+            self.__pos -= (self.__len - 32)
+        self.__buf = newbuf
+        self.__len = 32 * len(newbuf)
+
+    def skip_bits(self, bits):
+        """
+        Skip *bits* bits in the stream.
+        """
+        if self.__pos + bits > self.__len:
+            self._refill()
+        self.__pos += bits
+
+    def peek_bits(self, bits):
+        """
+        Peek at next *bits* bits in the stream without incrementing position.
+        """
+        if self.__pos + bits > self.__len:
+            self._refill()
+
+        peeked = min(bits, 32 - (self.__pos % 32))
+        res = self._getbits(self.__buf[self.__pos // 32],
+                            self.__pos % 32, peeked)
+        while bits - peeked >= 32:
+            res <<= 32
+            res += self.__buf[(self.__pos + peeked) // 32]
+            peeked += 32
+        if bits - peeked > 0:
+            res <<= bits - peeked
+            res += self._getbits(self.__buf[(self.__pos + peeked) // 32],
+                                 0, bits - peeked)
+        return res
+
+    def read_bits(self, bits):
+        """
+        Read *bits* bits from bitstream and increment position accordingly.
+        """
+        value = self.peek_bits(bits)
+        self.skip_bits(bits)
+        return value
+
+    def read_golomb_rice(self, r_bits, signed=False):
+        """
+        Read a Golomb-Rice code with *r_bits* remainder bits and an arbitrary
+        number of quotient bits from bitstream and return the represented
+        value.  Iff *signed* is True, interpret the lowest order bit as sign
+        bit and return a signed integer.
+        """
+        if r_bits == 0:
+            value = 0
+        else:
+            assert r_bits > 0
+            value = self.read_bits(r_bits)
+        while self.read_bits(1) == 1:
+            value += 1 << r_bits
+        if signed == False:
+            return value
+        if value & 1:
+            return - (value >> 1) - 1
+        else:
+            return value >> 1
+
+    def read_knownwidth_uint(self, bits):
+        """
+        Read an unsigned integer with previously known bit width *bits* from
+        stream.  The most significant bit is not encoded in the bit stream,
+        because it is always 1.
+        """
+        if bits < 2:
+            return bits
+        bits -= 1
+        return self.read_bits(bits) + (1 << bits)
 
 
 
@@ -1710,6 +1753,32 @@ class ACE:
         except IndexError:
             return '?'
 
+    @staticmethod
+    def decompress_comment(buf):
+        """
+        Decompress an ACE MAIN or FILE comment from bytes *buf* and return the
+        decompressed bytes.
+        """
+        bs = BitStream(io.BytesIO(buf))
+        want_size = bs.read_bits(15)
+        huff_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
+        comment = []
+        htab = [0] * 511
+        while len(comment) < want_size:
+            if len(comment) > 1:
+                hval = comment[-1] + comment[-2]
+                source_pos = htab[hval]
+                htab[hval] = len(comment)
+            else:
+                source_pos = 0
+            code = huff_tree.read_symbol(bs)
+            if code < 256:
+                comment.append(code)
+            else:
+                for i in range(code - 256 + 2):
+                    comment.append(comment[source_pos + i])
+        return bytes(comment)
+
     def __init__(self):
         self.__lz77  = LZ77()
         self.__sound = Sound()
@@ -1895,6 +1964,7 @@ class ACE:
 class Header:
     """
     Base class for all ACE file format headers.
+    Header classes are dumb by design and only serve as fancy structs.
     """
     MAGIC               = b'**ACE**'
 
@@ -2236,6 +2306,11 @@ class AceMember:
         nullbyte = filename.find(chr(0))
         if nullbyte >= 0:
             filename = filename[0:nullbyte]
+        # ensure path separators are consistent with current platform
+        if os.sep != '/':
+            filename = filename.replace('/', os.sep)
+        elif os.sep != '\\':
+            filename = filename.replace('\\', os.sep)
         # eliminate characters illegal on some platforms
         filename = filename.replace(':', '_')
         filename = filename.replace('<', '_')
@@ -2243,11 +2318,6 @@ class AceMember:
         filename = filename.replace('"', '_')
         filename = filename.replace('?', '_')
         filename = filename.replace('*', '_')
-        # ensure path separators are consistent with current platform
-        if os.sep != '/':
-            filename = filename.replace('/', os.sep)
-        elif os.sep != '\\':
-            filename = filename.replace('\\', os.sep)
         # first eliminate all /./, foo/../ and similar sequences, then remove
         # all remaining .. labels in order to avoid path traversal attacks but
         # still allow a safe subset of dot syntax in the filename
@@ -2257,38 +2327,27 @@ class AceMember:
         filename = re.sub(pattern, r'\1', filename)
         return filename
 
-    def _add_header(self, hdr):
-        """
-        For multi-volume archives, add continuing header from next volume to
-        this AceMember object, updating the attributes that have to be modified
-        to reflect all segments seen.
-        """
-        assert hdr.flag(Header.FLAG_CONTPREV)
-        self.packsize += hdr.packsize
-        self.crc32 = hdr.crc32
-        self.headers.append(hdr)
-
-    def __init__(self, idx, aa, filehdr):
+    def __init__(self, idx, filehdrs, f):
         """
         Initialize an AceMember object with index within archive *idx*,
         starting volume AceArchive *aa* and initial file header *filehdr*.
         """
-        assert not filehdr.flag(Header.FLAG_CONTPREV)
         self._idx           = idx
-        self._aa            = aa
-        self.orig_filename  = filehdr.filename
-        self.filename       = self._sanitize_filename(filehdr.filename)
-        self.size           = filehdr.origsize
-        self.packsize       = filehdr.packsize
-        self.mtime          = _dt_fromdos(filehdr.datetime)
-        self.attribs        = filehdr.attribs
-        self.comment        = filehdr.comment
-        self.crc32          = filehdr.crc32
-        self.comptype       = filehdr.comptype
-        self.compqual       = filehdr.compqual
-        self.params         = filehdr.params
-        self.header         = filehdr
-        self.headers        = [filehdr]
+        self._file          = f
+        self._headers       = filehdrs
+        self.orig_filename  = filehdrs[0].filename
+        self.filename       = self._sanitize_filename(filehdrs[0].filename)
+        self.size           = filehdrs[0].origsize
+        self.mtime          = _dt_fromdos(filehdrs[0].datetime)
+        self.attribs        = filehdrs[0].attribs
+        self.comment        = filehdrs[0].comment
+        self.crc32          = filehdrs[-1].crc32
+        self.comptype       = filehdrs[0].comptype
+        self.compqual       = filehdrs[0].compqual
+        self.params         = filehdrs[0].params
+        self.packsize       = 0
+        for hdr in filehdrs:
+            self.packsize += hdr.packsize
 
     def is_dir(self):
         """
@@ -2306,59 +2365,24 @@ class AceMember:
         """
         True iff AceMember object refers to an encrypted archive member.
         """
-        return self.header.flag(Header.FLAG_PASSWORD)
+        return self._headers[0].flag(Header.FLAG_PASSWORD)
 
 
 
-class AceArchive:
+class AceVolume:
     """
-    Open an ACE archive and interact with its members in ways modeled after
-    the tarfile API.
-    Aliased to AceFile for consistency with the tarfile/zipfile API.
+    Parse and represent a single archive volume.
     """
-
-    @classmethod
-    def open(cls, *args, **kvargs):
-        """
-        Alternative constructor for AceArchive, aliased to acefile.open().
-        """
-        return cls(*args, **kvargs)
 
     def __init__(self, file, mode='r', *, search=524288, _idx=0, _am=None):
-        """
-        Open archive from *file*, which is either a filename or seekable
-        file-like object.  Only *mode* 'r' is implemented.
-        If *search* is 0, the archive must start at position 0 in *file*,
-        otherwise the first *search* bytes are searched for the magic bytes
-        **ACE** that mark the ACE main header.  For compatibility with the
-        official unace, 1024 sectors are searched by default, even though
-        none of the SFX stubs that come with WinAce are that large.
-        Multi-volume archives are represented by a single AceArchive object to
-        the caller, all operations transparently read into subsequent volumes
-        as required.
-        To load a multi-volume archive, either open the first volume of the
-        series by filename, or provide a list or tuple of all file-like
-        objects or filenames in the correct order in *file*.
-        *_idx* and *_am* are used internally to chain multiple AceArchive
-        object into one; they should never be used as part of the API.
-        """
-        # FIXME separate out volume code into explicit AceVolume class
         if mode != 'r':
             raise NotImplementedError()
-        if isinstance(file, (list, tuple)):
-            if len(file) == 0:
-                raise ValueError()
-            multivolume = True
-            file_remaining = file[1:]
-            file = file[0]
-        else:
-            multivolume = False
         if isinstance(file, str):
             self.__file = builtin_open(file, 'rb')
             self.__filename = file
         else:
             if not file.seekable():
-                raise TypeError("file[s] must be filename or "
+                raise TypeError("file must be filename or "
                                 "seekable file-like object")
             self.__file = file
             self.__filename = '-'
@@ -2370,53 +2394,43 @@ class AceArchive:
         self._parse_headers(search)
         if self.__main_header == None:
             raise CorruptedArchiveError()
-        self.__file_acemembers = []
-        idx = _idx
-        am = _am
-        for hdr in self.__file_headers:
-            if hdr.flag(Header.FLAG_CONTPREV):
-                # if am is NULL, then this is a non-first volume in a
-                # multi-volume archive loaded separately
-                if am:
-                    am._add_header(hdr)
-                continue
-            am = AceMember(idx, self, hdr)
-            self.__file_acemembers.append(am)
-            idx += 1
-        self.__next_iter_idx = 0
-        self.__next_read_idx = 0
-        self.__ace = ACE()
-        self.__next_volume = None
-        if multivolume:
-            # multiple file-like objects passed in explicitly
-            if not self.__main_header.flag(Header.FLAG_MULTIVOLUME):
-                raise MultiVolumeArchiveError()
-            if len(file_remaining) > 0:
-                self.__next_volume = AceArchive(file_remaining, mode=mode,
-                                                search=0, _idx=idx, _am=am)
-                if self.__next_volume.__main_header.volume != \
-                   self.__main_header.volume + 1:
-                    raise MultiVolumeArchiveError()
-        else:
-            # only a single file-like object passed in
-            if self.__main_header.flag(Header.FLAG_MULTIVOLUME):
-                # if file is not a str, then this is a non-first volume in a
-                # multi-volume archive loaded separately
-                if isinstance(file, str):
-                    for nextname in self._get_next_volume_filename():
-                        try:
-                            self.__next_volume = AceArchive(nextname,
-                                                            mode=mode,
-                                                            search=0,
-                                                            _idx=idx,
-                                                            _am=am)
-                            break
-                        except FileNotFoundError:
-                            continue
 
-    def _get_next_volume_filename(self):
+    def close(self):
         """
-        Derive the filename of the next volume after self.__filename.
+        Close the underlying file object for this volume.
+        Can safely be called multiple times.
+        """
+        if self.__file != None:
+            self.__file.close()
+            self.__file = None
+
+    def dumpheaders(self, file=sys.stdout):
+        """
+        Dump ACE headers for this archive volume to *file*.
+        """
+        print("""volume
+    filename    %s
+    filesize    %i
+    headers     MAIN:1 FILE:%i others:%i""" % (
+                self.__filename,
+                self.__filesize,
+                len(self.__file_headers),
+                len(self.__all_headers) - len(self.__file_headers) - 1),
+            file=file)
+        for h in self.__all_headers:
+            print(h, file=file)
+
+    def file_segment_for(self, fhdr):
+        """
+        Returns a FileSegmentIO object for the file header *fhdr* belonging to
+        this volume.
+        """
+        assert fhdr in self.__file_headers
+        return FileSegmentIO(self.__file, fhdr.dataoffset, fhdr.packsize)
+
+    def _next_filename(self):
+        """
+        Derive the filename of the next volume after this one.
         If the filename ends in ".[cC]XX", XX is incremented by 1.
         Otherwise self is assumed to be the first in the series and
         ".[cC]00" is used as extension.
@@ -2435,414 +2449,17 @@ class AceArchive:
         return (base + '.c00',
                 base + '.C00')
 
-    def __enter__(self):
+    def try_load_next_volume(self, mode):
         """
-        Using AceArchive as a context manager ensures that close() is called
-        after leaving the block.
+        Open the next volume following this one in a multi-volume archive
+        and return the instantiated AceVolume object.
         """
-        return self
-
-    def __exit__(self, type, value, traceback):
-        self.close()
-
-    def __iter__(self):
-        """
-        Using AceArchive as an iterater will iterate over AceMember objects
-        for all archive members.
-        """
-        self.__next_iter_idx = 0
-        return self
-
-    def __next__(self):
-        """
-        Iterate to the next archive member's AceMember object.
-        """
-        if self.__next_iter_idx >= len(self.__file_acemembers):
-            raise StopIteration()
-        am = self.__file_acemembers[self.__next_iter_idx]
-        self.__next_iter_idx += 1
-        return am
-
-    def __repr__(self):
-        return "<%s %r at %#x>" % (self.__class__.__name__,self.filename,id(self))
-
-    def close(self):
-        """
-        Close the archive and free all resources.
-        """
-        if self.__file != None:
-            self.__file.close()
-            self.__file = None
-
-    def _getmember_byname(self, name):
-        """
-        Return an AceMember object corresponding to archive member name *name*.
-        Raise KeyError if *name* is not present in the archive.
-        If *name* occurs multiple times in the archive, then the last occurence
-        is returned.
-        """
-        match = None
-        for am in self.__file_acemembers:
-            if am.filename == name:
-                match = am
-        if match == None:
-            if self.__next_volume:
-                return self.__next_volume._getmember_byname(name)
-            raise KeyError()
-        return match
-
-    def _getmember_byidx(self, idx):
-        """
-        Return an AceMember object corresponding to archive member index *idx*.
-        Raise IndexError if *idx* is not present in the archive.
-        """
-        volume = self
-        base = 0
-        while volume:
-            if idx < base + len(volume.__file_acemembers):
-                return volume.__file_acemembers[idx - base]
-            base += len(volume.__file_acemembers)
-            volume = volume.__next_volume
-        raise IndexError()
-
-    def getmember(self, member):
-        """
-        Return an AceMember object corresponding to archive member *member*.
-        Raise KeyError or IndexError if *member* is not found in archive.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
-        If *member* is a name and it occurs multiple times in the archive,
-        then the last member with matching filename is returned.
-        """
-        if isinstance(member, int):
-            return self._getmember_byidx(member)
-        elif isinstance(member, AceMember):
-            return member
-        elif isinstance(member, str):
-            return self._getmember_byname(member)
-        else:
-            raise TypeError()
-
-    def getmembers(self):
-        """
-        Return a list of AceMember objects for each member of the archive.
-        The objects are in the same order as they are in the archive.
-        """
-        if self.__next_volume:
-            return self.__file_acemembers + self.__next_volume.getmembers()
-        return self.__file_acemembers
-
-    def getnames(self):
-        """
-        Return a list of the names of all the members in the archive.
-        """
-        return [am.filename for am in self.getmembers()]
-
-    def extract(self, member, *, path=None, pwd=None):
-        """
-        Extract an archive member to *path* or the current working directory.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
-        Returns the normalized path created (a directory or new file).
-        Extracting members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
-        """
-        am = self.getmember(member)
-        hdr = am.header
-
-        if path != None:
-            fn = os.path.join(path, am.filename)
-        else:
-            fn = am.filename
-        if hdr.attrib(Header.ATTR_DIRECTORY):
+        for nextname in self._next_filename():
             try:
-                os.mkdir(fn)
-            except FileExistsError:
-                pass
-        else:
-            basedir = os.path.dirname(fn)
-            if basedir != '':
-                os.makedirs(basedir, exist_ok=True)
-            with builtin_open(fn, 'wb') as f:
-                for buf in self.readblocks(am, pwd=pwd):
-                    f.write(buf)
-
-    def extractall(self, *, path=None, members=None, pwd=None):
-        """
-        Extract *members* or all members from archive to *path* or the current
-        working directory.  Members can contain AceMember objects, member names
-        or indexes into the archive member list.
-        """
-        if members == None or members == []:
-            members = self.getmembers()
-        else:
-            if self.is_solid():
-                # ensure members subset is in order of appearance
-                sorted_members = []
-                for member in self.getmembers():
-                    if member in members or \
-                       member.filename in members or \
-                       member._idx in members:
-                        sorted_members.append(member)
-                members = sorted_members
-        for am in members:
-            self.extract(am, path=path, pwd=pwd)
-
-    def read(self, member, *, pwd=None):
-        """
-        Read the bytes of a member from the archive.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
-        Using read() for large files is inefficient and may fail for very
-        large files.  Using readblocks() to write the data to disk in blocks
-        ensures that large files can be handled efficiently.
-        Reading members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
-        """
-        return b''.join(self.readblocks(member, pwd=pwd))
-
-    def readblocks(self, member, *, pwd=None):
-        """
-        Read the archive by yielding blocks of bytes.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
-        Reading members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
-        """
-        am = self.getmember(member)
-        hdr = am.header
-
-        # For solid archives, ensure the LZ77 state corresponds to the state
-        # after extracting the previous file by re-starting extraction from
-        # the beginning or the last extracted file.  This is what makes out
-        # of order access to solid archive members prohibitively slow.
-        if self.is_solid() and self.__next_read_idx != am._idx:
-            if self.__next_read_idx < am._idx:
-                restart_idx = self.__next_read_idx
-            else:
-                restart_idx = self.__next_read_idx = 0
-            for i in range(restart_idx, am._idx):
-                if not self.test(i):
-                    raise CorruptedArchiveError()
-
-        if (not hdr.attrib(Header.ATTR_DIRECTORY)) and hdr.origsize > 0:
-            # for multi-volume archive members which continue in the next
-            # volume, collect all file segments belonging to the member,
-            # wrap each into a FileSegmentIO object and wrap all of those in a
-            # MultipleFilesIO object giving a single file-like view over all
-            # the required file segments.
-            if self.__main_header.flag(Header.FLAG_MULTIVOLUME) and \
-               hdr.flag(Header.FLAG_CONTNEXT):
-                am._aa.__file.seek(hdr.dataoffset, 0)
-                files = [FileSegmentIO(am._aa.__file, hdr.packsize)]
-                if hdr.flag(Header.FLAG_CONTPREV):
-                    raise CorruptedArchiveError()
-                volume = am._aa.__next_volume
-                while True:
-                    if volume == None:
-                        raise MultiVolumeArchiveError()
-                    if len(volume.__file_headers) < 1:
-                        raise CorruptedArchiveError()
-                    vhdr = volume.__file_headers[0]
-                    if not vhdr.flag(Header.FLAG_CONTPREV):
-                        raise CorruptedArchiveError()
-                    volume.__file.seek(vhdr.dataoffset, 0)
-                    files.append(FileSegmentIO(volume.__file, vhdr.packsize))
-                    expected_crc32 = vhdr.crc32
-                    if not vhdr.flag(Header.FLAG_CONTNEXT):
-                        break
-                    if len(volume.__file_headers) > 1:
-                        raise CorruptedArchiveError()
-                    volume = volume.__next_volume
-                f = MultipleFilesIO(files)
-            else:
-                # single-segment archive member; either non-multi-volume or
-                # multi-volume but not continued in next volume.
-                am._aa.__file.seek(hdr.dataoffset, 0)
-                f = FileSegmentIO(am._aa.__file, hdr.packsize)
-                expected_crc32 = hdr.crc32
-
-            # for password protected members, wrap the file-like object in
-            # a decrypting wrapper object.
-            if hdr.flag(Header.FLAG_PASSWORD):
-                if not pwd:
-                    raise EncryptedArchiveError()
-                f = EncryptedFileIO(f, pwd)
-
-            # choose the matching decompressor based on the first header.
-            if hdr.comptype == Header.COMP_STORE:
-                decompressor = self.__ace.decompress_stored
-            elif hdr.comptype == Header.COMP_LZ77:
-                decompressor = self.__ace.decompress_lz77
-            elif hdr.comptype == Header.COMP_BLOCKED:
-                decompressor = self.__ace.decompress_blocked
-            else:
-                raise UnknownMethodError()
-
-            # decompress and calculate CRC over full decompressed data,
-            # i.e. after decryption and across all segments that may have
-            # been read from different volumes.
-            crc = AceCRC32()
-            try:
-                for block in decompressor(f, hdr.origsize, hdr.params):
-                    crc += block
-                    yield block
-            except CorruptedArchiveError:
-                if hdr.flag(Header.FLAG_PASSWORD):
-                    raise EncryptedArchiveError()
-                raise
-            if crc != expected_crc32:
-                if hdr.flag(Header.FLAG_PASSWORD):
-                    raise EncryptedArchiveError()
-                raise CorruptedArchiveError()
-
-        self.__next_read_idx += 1
-
-    def test(self, member, *, pwd=None):
-        """
-        Read a file from the archive.  Returns False if any corruption was
-        found, True if the header and decompression was okay.
-        Raises EncryptedArchiveError if the archive member is encrypted but
-        no password was provided.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
-        Testing members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
-        """
-        try:
-            for buf in self.readblocks(member, pwd=pwd):
-                pass
-            return True
-        except EncryptedArchiveError:
-            raise
-        except AceError:
-            return False
-
-    def testall(self, *, pwd=None):
-        """
-        Read all the files in the archive.  Returns the name of the first file
-        with a failing header or content CRC, or None if all files were okay.
-        Raises EncryptedArchiveError if an archive member is encrypted but no
-        password was provided.
-        """
-        for am in self.getmembers():
-            if not self.test(am, pwd=pwd):
-                return am.filename
+                return AceVolume(nextname, mode=mode, search=0)
+            except FileNotFoundError:
+                continue
         return None
-
-    def dumpheaders(self, file=sys.stdout):
-        """
-        Dump all ACE file format headers to *file*.
-        """
-        print("[%s]" % self.__filename, file=file)
-        for h in self.__all_headers:
-            print(h, file=file)
-        if self.__next_volume:
-            self.__next_volume.dumpheaders()
-
-    def is_solid(self):
-        """
-        Return True iff archive is a solid archive, i.e. iff the archive
-        members are linked to each other by sharing the same dictionary.
-        """
-        return self.__main_header.flag(Header.FLAG_SOLID)
-
-    def is_multivolume(self):
-        """
-        Return True iff archive is part of a multi-volume archive set.
-        """
-        return self.__main_header.flag(Header.FLAG_MULTIVOLUME)
-
-    @property
-    def filename(self):
-        """
-        ACE archive filename.  This is not a property of the archive but rather
-        just the filename passed to the AceArchive constructor.
-        """
-        return self.__filename
-
-    @property
-    def cversion(self):
-        """
-        ACE creator version, version of ACE format used to create the archive.
-        """
-        return self.__main_header.cversion
-
-    @property
-    def eversion(self):
-        """
-        ACE extractor version, version of ACE format handler needed to extract.
-        """
-        return self.__main_header.eversion
-
-    @property
-    def mtime(self):
-        """
-        Archive modification timestamp as datetime object.
-        """
-        return _dt_fromdos(self.__main_header.datetime)
-
-    @property
-    def volume(self):
-        """
-        Archive volume number.  Should be 0 for non-multi-volume archives,
-        ranges from 0 to n-1 for multi-volume archives with n volumes, where
-        0 is the initial volume.  Note that under normal circumstances, this
-        will always be 0 in the public API, only when AceArchive objects are
-        used to represent later volumes internally, this is > 0.  It is
-        possible to open subsequent archive files, causing volume to be > 0
-        in the public API, but unless the initial volume is unavailable for
-        some reason, it does not make sense.
-        """
-        return self.__main_header.volume
-
-    @property
-    def comment(self):
-        """
-        ACE archive level comment.
-        """
-        return self.__main_header.comment
-
-    @property
-    def advert(self):
-        """
-        ACE archive level advert string.
-        """
-        return self.__main_header.advert
-
-    @staticmethod
-    def _decompress_comment(buf):
-        """
-        Decompress an ACE MAIN or FILE comment.  These are compressed using
-        Huffman coding plus a simple copy mechanism.
-        """
-        bs = BitStream(io.BytesIO(buf))
-        want_size = bs.read_bits(15)
-        huff_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
-        comment = []
-        htab = [0] * 511
-        while len(comment) < want_size:
-            if len(comment) > 1:
-                hval = comment[-1] + comment[-2]
-                source_pos = htab[hval]
-                htab[hval] = len(comment)
-            else:
-                source_pos = 0
-            code = huff_tree.read_symbol(bs)
-            if code < 256:
-                comment.append(code)
-            else:
-                for i in range(code - 256 + 2):
-                    comment.append(comment[source_pos + i])
-        return bytes(comment)
 
     def _parse_headers(self, search):
         """
@@ -2932,7 +2549,7 @@ class AceArchive:
                 i += 2
                 if i + cmsz > len(buf):
                     raise CorruptedArchiveError()
-                comment = self._decompress_comment(buf[i:i+cmsz])
+                comment = ACE.decompress_comment(buf[i:i+cmsz])
                 header.comment = comment.decode('utf-8', errors='replace')
                 i += cmsz
             header.reserved2 = buf[i:]
@@ -2982,7 +2599,7 @@ class AceArchive:
                 i += 2
                 if i + cmsz > len(buf):
                     raise CorruptedArchiveError()
-                comment = self._decompress_comment(buf[i:i+cmsz])
+                comment = ACE.decompress_comment(buf[i:i+cmsz])
                 header.comment = comment.decode('utf-8', errors='replace')
                 i += cmsz
             header.reserved2 = buf[i:]
@@ -3006,6 +2623,487 @@ class AceArchive:
 
         self.__all_headers.append(header)
 
+    def get_file_headers(self):
+        return self.__file_headers
+
+    def is_multivolume(self):
+        return self.__main_header.flag(Header.FLAG_MULTIVOLUME)
+
+    def is_solid(self):
+        return self.__main_header.flag(Header.FLAG_SOLID)
+
+    @property
+    def advert(self):
+        return self.__main_header.advert
+
+    @property
+    def comment(self):
+        return self.__main_header.comment
+
+    @property
+    def cversion(self):
+        return self.__main_header.cversion
+
+    @property
+    def eversion(self):
+        return self.__main_header.eversion
+
+    @property
+    def filename(self):
+        return self.__filename
+
+    @property
+    def mtime(self):
+        return _dt_fromdos(self.__main_header.datetime)
+
+    @property
+    def volume(self):
+        return self.__main_header.volume
+
+
+
+class AceArchive:
+    """
+    Open an ACE archive, possibly consisting of multiple volumes, and interact
+    with the archive's members in ways modeled after the tarfile API.
+    Aliased to AceFile for consistency with the tarfile/zipfile API.
+    """
+
+    @classmethod
+    def open(cls, *args, **kvargs):
+        """
+        Alternative constructor for AceArchive, aliased to acefile.open().
+        """
+        return cls(*args, **kvargs)
+
+    def __init__(self, file, mode='r', *, search=524288):
+        """
+        Open archive from *file*, which is either a filename or seekable
+        file-like object.  Only *mode* 'r' is implemented.
+        If *search* is 0, the archive must start at position 0 in *file*,
+        otherwise the first *search* bytes are searched for the magic bytes
+        **ACE** that mark the ACE main header.  For 1:1 compatibility with the
+        official unace, 1024 sectors are searched by default, even though
+        none of the SFX stubs that come with WinAce are that large.
+        Multi-volume archives are represented by a single AceArchive object to
+        the caller, all operations transparently read into subsequent volumes
+        as required.
+        To load a multi-volume archive, either open the first volume of the
+        series by filename, or provide a list or tuple of all file-like
+        objects or filenames in the correct order in *file*.
+        *_idx* and *_am* are used internally to chain multiple AceArchive
+        object into one; they should never be used as part of the API.
+        """
+        if mode != 'r':
+            raise NotImplementedError()
+        if isinstance(file, (tuple, list)):
+            if len(file) == 0:
+                raise ValueError()
+        else:
+            file = (file,)
+
+        # load volumes
+        self.__volumes = [AceVolume(file[0], mode, search=search)]
+        if self.__volumes[0].is_multivolume():
+            for f in file[1:]:
+                self.__volumes.append(AceVolume(f, mode, search=0))
+            if len(self.__volumes) == 1 and isinstance(file[0], str):
+                vol = self.__volumes[0]
+                while True:
+                    vol = vol.try_load_next_volume(mode)
+                    if not vol:
+                        break
+                    self.__volumes.append(vol)
+
+        # check volume linkage
+        if len(self.__volumes) > 1:
+            last_volume = None
+            for vol in self.__volumes:
+                if not vol.is_multivolume():
+                    raise MultiVolumeArchiveError()
+                if last_volume != None and vol.volume != last_volume + 1:
+                    raise MultiVolumeArchiveError()
+                last_volume = vol.volume
+
+        # build list of archive members and their file segments across volumes
+        self.__members = []
+        headers = []
+        segments = []
+        for volume in self.__volumes:
+            for hdr in volume.get_file_headers():
+                if len(headers) == 0:
+                    if hdr.flag(Header.FLAG_CONTPREV):
+                        if len(self.__members) > 0:
+                            raise MultiVolumeArchiveError()
+                        # don't raise an error if this is the first file
+                        # in the first volume, to allow opening subsequent
+                        # volumes of multi-volume archives separately
+                        continue
+                else:
+                    if not hdr.flag(Header.FLAG_CONTPREV):
+                        raise MultiVolumeArchiveError()
+                    if hdr.filename != headers[-1].filename:
+                        raise MultiVolumeArchiveError()
+                headers.append(hdr)
+                segments.append(volume.file_segment_for(hdr))
+                if not hdr.flag(Header.FLAG_CONTNEXT):
+                    if len(segments) > 1:
+                        f = MultipleFilesIO(segments)
+                    else:
+                        f = segments[0]
+                    self.__members.append(AceMember(len(self.__members),
+                                                    headers, f))
+                    headers = []
+                    segments = []
+
+        self.__next_iter_idx = 0
+        self.__next_read_idx = 0
+        self.__ace = ACE()
+
+    def __enter__(self):
+        """
+        Using AceArchive as a context manager ensures that close() is called
+        after leaving the block.
+        """
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    def __iter__(self):
+        """
+        Using AceArchive as an iterater will iterate over AceMember objects
+        for all archive members.
+        """
+        self.__next_iter_idx = 0
+        return self
+
+    def __next__(self):
+        """
+        Iterate to the next archive member's AceMember object.
+        """
+        if self.__next_iter_idx >= len(self.__members):
+            raise StopIteration()
+        am = self.__members[self.__next_iter_idx]
+        self.__next_iter_idx += 1
+        return am
+
+    def __repr__(self):
+        return "<%s %r at %#x>" % (self.__class__.__name__,
+                                   self.filename,
+                                   id(self))
+
+    def close(self):
+        """
+        Close the archive and free all resources.
+        """
+        for volume in self.__volumes:
+            volume.close()
+
+    def _getmember_byname(self, name):
+        """
+        Return an AceMember object corresponding to archive member name *name*.
+        Raise KeyError if *name* is not present in the archive.
+        If *name* occurs multiple times in the archive, then the last occurence
+        is returned.
+        """
+        match = None
+        for am in self.__members:
+            if am.filename == name:
+                match = am
+        if match == None:
+            raise KeyError()
+        return match
+
+    def _getmember_byidx(self, idx):
+        """
+        Return an AceMember object corresponding to archive member index *idx*.
+        Raise IndexError if *idx* is not present in the archive.
+        """
+        return self.__members[idx]
+
+    def getmember(self, member):
+        """
+        Return an AceMember object corresponding to archive member *member*.
+        Raise KeyError or IndexError if *member* is not found in archive.
+        *Member* can refer to an AceMember object, a member name or an index
+        into the archive member list.
+        If *member* is a name and it occurs multiple times in the archive,
+        then the last member with matching filename is returned.
+        """
+        if isinstance(member, int):
+            return self._getmember_byidx(member)
+        elif isinstance(member, AceMember):
+            return member
+        elif isinstance(member, str):
+            return self._getmember_byname(member)
+        else:
+            raise TypeError()
+
+    def getmembers(self):
+        """
+        Return a list of AceMember objects for each member of the archive.
+        The objects are in the same order as they are in the archive.
+        """
+        return self.__members
+
+    def getnames(self):
+        """
+        Return a list of the names of all the members in the archive.
+        """
+        return [am.filename for am in self.getmembers()]
+
+    def extract(self, member, *, path=None, pwd=None):
+        """
+        Extract an archive member to *path* or the current working directory.
+        *Member* can refer to an AceMember object, a member name or an index
+        into the archive member list.
+        Returns the normalized path created (a directory or new file).
+        Extracting members in a different order than they appear in a solid
+        archive works but is very slow, because the decompressor needs to
+        restart at the beginning of the solid archive to restore internal
+        decompressor state.
+        """
+        am = self.getmember(member)
+
+        if path != None:
+            fn = os.path.join(path, am.filename)
+        else:
+            fn = am.filename
+        if am.is_dir():
+            try:
+                os.mkdir(fn)
+            except FileExistsError:
+                pass
+        else:
+            basedir = os.path.dirname(fn)
+            if basedir != '':
+                os.makedirs(basedir, exist_ok=True)
+            with builtin_open(fn, 'wb') as f:
+                for buf in self.readblocks(am, pwd=pwd):
+                    f.write(buf)
+
+    def extractall(self, *, path=None, members=None, pwd=None):
+        """
+        Extract *members* or all members from archive to *path* or the current
+        working directory.  Members can contain AceMember objects, member names
+        or indexes into the archive member list.
+        """
+        if members == None or members == []:
+            members = self.getmembers()
+        else:
+            if self.is_solid():
+                # ensure members subset is in order of appearance
+                sorted_members = []
+                for member in self.getmembers():
+                    if member in members or \
+                       member.filename in members or \
+                       member._idx in members:
+                        sorted_members.append(member)
+                members = sorted_members
+        for am in members:
+            self.extract(am, path=path, pwd=pwd)
+
+    def read(self, member, *, pwd=None):
+        """
+        Read the bytes of a member from the archive.
+        *Member* can refer to an AceMember object, a member name or an index
+        into the archive member list.
+        Using read() for large files is inefficient and may fail for very
+        large files.  Using readblocks() to write the data to disk in blocks
+        ensures that large files can be handled efficiently.
+        Reading members in a different order than they appear in a solid
+        archive works but is very slow, because the decompressor needs to
+        restart at the beginning of the solid archive to restore internal
+        decompressor state.
+        """
+        return b''.join(self.readblocks(member, pwd=pwd))
+
+    def readblocks(self, member, *, pwd=None):
+        """
+        Read the archive by yielding blocks of bytes.
+        *Member* can refer to an AceMember object, a member name or an index
+        into the archive member list.
+        Reading members in a different order than they appear in a solid
+        archive works but is very slow, because the decompressor needs to
+        restart at the beginning of the solid archive to restore internal
+        decompressor state.
+        """
+        am = self.getmember(member)
+
+        # Need first volume available to read from solid multi-volume archives.
+        if self.is_solid() and self.is_multivolume() and self.volume > 0:
+            raise MultiVolumeArchiveError()
+
+        # For solid archives, ensure the LZ77 state corresponds to the state
+        # after extracting the previous file by re-starting extraction from
+        # the beginning or the last extracted file.  This is what makes out
+        # of order access to solid archive members prohibitively slow.
+        if self.is_solid() and self.__next_read_idx != am._idx:
+            if self.__next_read_idx < am._idx:
+                restart_idx = self.__next_read_idx
+            else:
+                restart_idx = self.__next_read_idx = 0
+            for i in range(restart_idx, am._idx):
+                if not self.test(i):
+                    raise CorruptedArchiveError()
+
+        if (not am.is_dir()) and am.size > 0:
+            f = am._file
+            f.seek(0, 0)
+
+            # For password protected members, wrap the file-like object in
+            # a decrypting wrapper object.
+            if am.is_enc():
+                if not pwd:
+                    raise EncryptedArchiveError()
+                f = EncryptedFileIO(f, pwd)
+
+            # Choose the matching decompressor based on the first header.
+            if am.comptype == Header.COMP_STORE:
+                decompressor = self.__ace.decompress_stored
+            elif am.comptype == Header.COMP_LZ77:
+                decompressor = self.__ace.decompress_lz77
+            elif am.comptype == Header.COMP_BLOCKED:
+                decompressor = self.__ace.decompress_blocked
+            else:
+                raise UnknownMethodError()
+
+            # Decompress and calculate CRC over full decompressed data,
+            # i.e. after decryption and across all segments that may have
+            # been read from different volumes.
+            crc = AceCRC32()
+            try:
+                for block in decompressor(f, am.size, am.params):
+                    crc += block
+                    yield block
+            except CorruptedArchiveError:
+                if am.is_enc():
+                    raise EncryptedArchiveError()
+                raise
+            if crc != am.crc32:
+                if am.is_enc():
+                    raise EncryptedArchiveError()
+                raise CorruptedArchiveError()
+
+        self.__next_read_idx += 1
+
+    def test(self, member, *, pwd=None):
+        """
+        Read a file from the archive.  Returns False if any corruption was
+        found, True if the header and decompression was okay.
+        Raises EncryptedArchiveError if the archive member is encrypted but
+        no password was provided.
+        *Member* can refer to an AceMember object, a member name or an index
+        into the archive member list.
+        Testing members in a different order than they appear in a solid
+        archive works but is very slow, because the decompressor needs to
+        restart at the beginning of the solid archive to restore internal
+        decompressor state.
+        """
+        try:
+            for buf in self.readblocks(member, pwd=pwd):
+                pass
+            return True
+        except EncryptedArchiveError:
+            raise
+        except AceError:
+            return False
+
+    def testall(self, *, pwd=None):
+        """
+        Read all the files in the archive.  Returns the name of the first file
+        with a failing header or content CRC, or None if all files were okay.
+        Raises EncryptedArchiveError if an archive member is encrypted but no
+        password was provided.
+        """
+        for am in self.getmembers():
+            if not self.test(am, pwd=pwd):
+                return am.filename
+        return None
+
+    def dumpheaders(self, file=sys.stdout):
+        """
+        Dump all ACE file format headers to *file*.
+        """
+        for volume in self.__volumes:
+            volume.dumpheaders()
+
+    def is_multivolume(self):
+        """
+        Return True iff archive is a multi-volume archive as determined
+        by the archive headers.  When opening the last volume of a
+        multi-volume archive, this returns True even though only a single
+        volume was loaded.
+        """
+        return self.__volumes[0].is_multivolume()
+
+    def is_solid(self):
+        """
+        Return True iff archive is a solid archive, i.e. iff the archive
+        members are linked to each other by sharing the same dictionary.
+        """
+        return self.__volumes[0].is_solid()
+
+    @property
+    def advert(self):
+        """
+        ACE archive level advert string.
+        """
+        return self.__volumes[0].advert
+
+    @property
+    def comment(self):
+        """
+        ACE archive level comment.
+        """
+        return self.__volumes[0].comment
+
+    @property
+    def cversion(self):
+        """
+        ACE creator version, version of ACE format used to create the archive.
+        """
+        return self.__volumes[0].cversion
+
+    @property
+    def eversion(self):
+        """
+        ACE extractor version, version of ACE format handler needed to extract.
+        """
+        return self.__volumes[0].eversion
+
+    @property
+    def filename(self):
+        """
+        ACE archive filename.  This is not a property of the archive but rather
+        just the filename passed to the AceArchive constructor.
+        """
+        return self.__volumes[0].filename
+
+    @property
+    def mtime(self):
+        """
+        Archive modification timestamp as datetime object.
+        """
+        return self.__volumes[0].mtime
+
+    @property
+    def volume(self):
+        """
+        ACE archive volume number of the first volume of this ACE archive.
+        """
+        return self.__volumes[0].volume
+
+    @property
+    def volumes_loaded(self):
+        """
+        Number of loaded volumes in this archives.  When opening a subsequent
+        volume of a multi-volume archive, this may be lower than the
+        theoretical volume count.
+        """
+        return len(self.__volumes)
+
 
 
 def is_acefile(file, *, search=524288):
@@ -3026,7 +3124,7 @@ def is_acefile(file, *, search=524288):
 builtin_open = open
 open = AceArchive.open
 AceFile = AceArchive
-__all__ = ['is_acefile', 'AceFile', 'AceArchive', 'AceMember']
+__all__ = ['is_acefile', 'AceFile', 'AceArchive']
 __all__.extend(filter(lambda name: name.endswith('Error'), list(globals())))
 
 
@@ -3048,12 +3146,12 @@ def unace():
     group.add_argument('--extract', '-x', default='extract',
             action='store_const', dest='mode', const='extract',
             help='extract files in archive (default)')
-    group.add_argument('--list', '-l',
-            action='store_const', dest='mode', const='list',
-            help='list files in archive')
     group.add_argument('--test', '-t',
             action='store_const', dest='mode', const='test',
             help='test archive integrity')
+    group.add_argument('--list', '-l',
+            action='store_const', dest='mode', const='list',
+            help='list files in archive')
     group.add_argument('--headers',
             action='store_const', dest='mode', const='headers',
             help='dump archive headers')
@@ -3095,7 +3193,10 @@ def unace():
     with open(archive) as f:
         if args.verbose:
             eprint("processing archive %s" % f.filename)
-            eprint("created on %s with version %s (extract with %s+)" % (
+            eprint("loaded %i volume(s) starting at volume %i" % (
+                   f.volumes_loaded,
+                   f.volume))
+            eprint("created on %s with ACE version %s (extract with %s+)" % (
                    f.mtime.strftime('%Y-%m-%d %H:%M:%S'),
                    f.cversion/10, f.eversion/10))
             if f.advert:
@@ -3107,6 +3208,10 @@ def unace():
                 eprint(asciibox(f.comment, title='archive comment'))
 
         if args.mode == 'extract':
+            if f.is_multivolume() and f.volume > 0 and f.is_solid():
+                eprint(("error: need complete set of volumes to extract from "
+                        "solid multivolume archive"))
+                sys.exit(1)
             failed = 0
             password = args.password
             if args.file:
@@ -3154,44 +3259,11 @@ def unace():
             if failed > 0:
                 sys.exit(1)
 
-        elif args.mode == 'list':
-            if args.verbose:
-                eprint("type    size     packed   rel  timestamp            filename")
-                count = count_size = count_packsize = 0
-                for am in f.getmembers():
-                    if am.is_reg():
-                        t = 'f'
-                    elif am.is_dir():
-                        t = 'd'
-                    else:
-                        t = '?'
-                    if am.is_enc():
-                        e = '+'
-                    else:
-                        e = ' '
-                    if am.size > 0:
-                        ratio = (100 * am.packsize) // am.size
-                    else:
-                        ratio = 100
-                    print("%s%s %9i  %9i  %3i%%  %s  %s" % (
-                        t, e,
-                        am.size,
-                        am.packsize,
-                        ratio,
-                        am.mtime.strftime('%Y-%m-%d %H:%M:%S'),
-                        am.filename))
-                    if am.comment:
-                        eprint(asciibox(am.comment, title='file comment'))
-                    count_size += am.size
-                    count_packsize += am.packsize
-                    count += 1
-                eprint("total %i members, %i bytes, %i bytes compressed" % (
-                       count, count_size, count_packsize))
-            else:
-                for fn in f.getnames():
-                    print("%s" % fn)
-
         elif args.mode == 'test':
+            if f.is_multivolume() and f.volume > 0 and f.is_solid():
+                eprint(("error: need complete set of volumes to test "
+                        "solid multivolume archive"))
+                sys.exit(1)
             failed = 0
             ok = 0
             password = args.password
@@ -3237,6 +3309,44 @@ def unace():
                    ok + failed, ok, failed))
             if failed > 0:
                 sys.exit(1)
+
+        elif args.mode == 'list':
+            if args.verbose:
+                eprint(("type    size     packed   rel  "
+                        "timestamp            filename"))
+                count = count_size = count_packsize = 0
+                for am in f.getmembers():
+                    if am.is_reg():
+                        t = 'f'
+                    elif am.is_dir():
+                        t = 'd'
+                    else:
+                        t = '?'
+                    if am.is_enc():
+                        e = '+'
+                    else:
+                        e = ' '
+                    if am.size > 0:
+                        ratio = (100 * am.packsize) // am.size
+                    else:
+                        ratio = 100
+                    print("%s%s %9i  %9i  %3i%%  %s  %s" % (
+                        t, e,
+                        am.size,
+                        am.packsize,
+                        ratio,
+                        am.mtime.strftime('%Y-%m-%d %H:%M:%S'),
+                        am.filename))
+                    if am.comment:
+                        eprint(asciibox(am.comment, title='file comment'))
+                    count_size += am.size
+                    count_packsize += am.packsize
+                    count += 1
+                eprint("total %i members, %i bytes, %i bytes compressed" % (
+                       count, count_size, count_packsize))
+            else:
+                for fn in f.getnames():
+                    print("%s" % fn)
 
         elif args.mode == 'headers':
             f.dumpheaders()
