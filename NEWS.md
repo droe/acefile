@@ -1,6 +1,8 @@
 
 ### acefile 0.5.3-dev
 
+-   Show more metadata in CLI --verbose archive info and --list.
+
 
 ### acefile 0.5.2 2017-07-03
 

@@ -1806,14 +1806,14 @@ class ACE:
         self.__sound = Sound()
         self.__pic   = Pic()
 
-    def decompress_stored(self, f, filesize, params):
+    def decompress_stored(self, f, filesize, dicbits):
         """
         Decompress data compressed using the store method from file-like-object
         *f* containing compressed bytes that will be decompressed to *filesize*
         bytes.  Decompressed data will be yielded in blocks of undefined size
         upon availability.  Empty files will return without yielding anything.
         """
-        self.__lz77.set_dicbits((params & 15) + 10)
+        self.__lz77.set_dicbits(dicbits)
         producedsize = 0
         while producedsize < filesize:
             wantsize = min(filesize - producedsize, FILE_BLOCKSIZE)
@@ -1824,14 +1824,14 @@ class ACE:
             yield outchunk
             producedsize += len(outchunk)
 
-    def decompress_lz77(self, f, filesize, params):
+    def decompress_lz77(self, f, filesize, dicbits):
         """
         Decompress data compressed using the ACE 1.0 legacy LZ77 method from
         file-like-object *f* containing compressed bytes that will be
         decompressed to *filesize* bytes.  Decompressed data will be yielded
         in blocks of undefined size upon availability.
         """
-        self.__lz77.set_dicbits((params & 15) + 10)
+        self.__lz77.set_dicbits(dicbits)
         self.__lz77.reinit()
         bs = BitStream(f)
         producedsize = 0
@@ -1842,7 +1842,7 @@ class ACE:
             yield outchunk
             producedsize += len(outchunk)
 
-    def decompress_blocked(self, f, filesize, params):
+    def decompress_blocked(self, f, filesize, dicbits):
         """
         Decompress data compressed using the ACE 2.0 blocked method from
         file-like-object *f* containing compressed bytes that will be
@@ -1850,7 +1850,7 @@ class ACE:
         in blocks of undefined size upon availability.
         """
         bs = BitStream(f)
-        self.__lz77.set_dicbits((params & 15) + 10)
+        self.__lz77.set_dicbits(dicbits)
         self.__lz77.reinit()
 
         # LZ77_EXE
@@ -2352,7 +2352,7 @@ class AceMember:
     def __init__(self, idx, filehdrs, f):
         """
         Initialize an AceMember object with index within archive *idx*,
-        starting volume AceArchive *aa* and initial file header *filehdr*.
+        initial file header *filehdr* and underlying file-like object *f*.
         """
         self._idx           = idx
         self._file          = f
@@ -2366,7 +2366,7 @@ class AceMember:
         self.crc32          = filehdrs[-1].crc32
         self.comptype       = filehdrs[0].comptype
         self.compqual       = filehdrs[0].compqual
-        self.params         = filehdrs[0].params
+        self.dicbits        = (filehdrs[0].params & 15) + 10
         self.packsize       = 0
         for hdr in filehdrs:
             self.packsize += hdr.packsize
@@ -2677,6 +2677,10 @@ class AceVolume:
     @property
     def mtime(self):
         return _dt_fromdos(self.__main_header.datetime)
+
+    @property
+    def platform(self):
+        return self.__main_header.host_str
 
     @property
     def volume(self):
@@ -2996,7 +3000,7 @@ class AceArchive:
             # been read from different volumes.
             crc = AceCRC32()
             try:
-                for block in decompressor(f, am.size, am.params):
+                for block in decompressor(f, am.size, am.dicbits):
                     crc += block
                     yield block
             except CorruptedArchiveError:
@@ -3111,6 +3115,14 @@ class AceArchive:
         return self.__volumes[0].mtime
 
     @property
+    def platform(self):
+        """
+        String describing the platform on which the ACE archive was created.
+        This is derived from the *host* field in the archive header.
+        """
+        return self.__volumes[0].platform
+
+    @property
     def volume(self):
         """
         ACE archive volume number of the first volume of this ACE archive.
@@ -3216,11 +3228,11 @@ def unace():
         if args.verbose:
             eprint("processing archive %s" % f.filename)
             eprint("loaded %i volume(s) starting at volume %i" % (
-                   f.volumes_loaded,
-                   f.volume))
-            eprint("created on %s with ACE version %s (extract with %s+)" % (
-                   f.mtime.strftime('%Y-%m-%d %H:%M:%S'),
-                   f.cversion/10, f.eversion/10))
+                   f.volumes_loaded, f.volume))
+            eprint("created on %s with ACE %s for extraction with %s+" % (
+                   f.platform, f.cversion/10, f.eversion/10))
+            eprint("last modified %s" % (
+                   f.mtime.strftime('%Y-%m-%d %H:%M:%S')))
             if f.advert:
                 eprint("by", f.advert)
             if f.is_multivolume() and f.volume > 0:
@@ -3334,26 +3346,25 @@ def unace():
 
         elif args.mode == 'list':
             if args.verbose:
-                eprint(("type    size     packed   rel  "
+                eprint(("CQD TE      size     packed   rel  "
                         "timestamp            filename"))
                 count = count_size = count_packsize = 0
                 for am in f.getmembers():
-                    if am.is_reg():
-                        t = 'f'
-                    elif am.is_dir():
-                        t = 'd'
+                    if am.is_dir():
+                        ft = 'd'
                     else:
-                        t = '?'
+                        ft = 'f'
                     if am.is_enc():
-                        e = '+'
+                        en = '+'
                     else:
-                        e = ' '
+                        en = ' '
                     if am.size > 0:
                         ratio = (100 * am.packsize) // am.size
                     else:
                         ratio = 100
-                    print("%s%s %9i  %9i  %3i%%  %s  %s" % (
-                        t, e,
+                    print("%i%i%s %s%s %9i  %9i  %3i%%  %s  %s" % (
+                        am.comptype, am.compqual, hex(am.dicbits - 10)[2:],
+                        ft, en,
                         am.size,
                         am.packsize,
                         ratio,
