@@ -274,7 +274,41 @@ class MultipleFilesIO:
 class EncryptedFileIO:
     """
     Non-seekable file-like object that reads from a lower-level file-like
-    object and transparently decrypts the data stream using ACE Blowfish.
+    object not assumed to be seekable, and transparently decrypts the data
+    stream using a decryption engine.  The decryption engine is assumed to
+    support a decrypt() method and a blocksize property.
+    """
+    def __init__(self, f, engine):
+        self.__file = f
+        self.__engine = engine
+        self.__buffer = b''
+
+    def seekable():
+        return False
+
+    def read(self, n):
+        if n < len(self.__buffer):
+            rbuf = self.__buffer[:n]
+            self.__buffer = self.__buffer[n:]
+            return rbuf
+        want_bytes = n - len(self.__buffer)
+        read_bytes = want_bytes
+        blocksize = self.__engine.blocksize
+        if want_bytes % blocksize:
+            read_bytes += blocksize - (want_bytes % blocksize)
+        buf = self.__file.read(read_bytes)
+        if len(buf) % blocksize:
+            raise TruncatedArchiveError()
+        buf = self.__engine.decrypt(buf)
+        rbuf = self.__buffer + buf[:n]
+        self.__buffer = buf[n:]
+        return rbuf
+
+
+
+class AceBlowfish:
+    """
+    Decryption engine for ACE Blowfish.
     """
 
     SHA1_A = 0x67452301
@@ -554,17 +588,53 @@ class EncryptedFileIO:
         0x90D4F869, 0xA65CDEA0, 0x3F09252D, 0xC208E69F,
         0xB74E6132, 0xCE77E25B, 0x578FDFE3, 0x3AC372E6)
 
-    def __init__(self, f, pwd):
+    def __init__(self, pwd):
         """
-        Wrap file-like object *f*, decrypting using password *pwd*, which can
-        be str or bytes.  File-like object *f* is expected to be at the correct
-        position; this class will only use the read() method on *f*.
+        Initialize decryption engine with a key derived from password *pwd*,
+        which can be str or bytes.
         """
         if isinstance(pwd, str):
             pwd = pwd.encode('utf-8')
-        self.__file = f
         self._bf_init(self._derive_key(pwd))
-        self.__buffer = b''
+
+    def _derive_key(self, pwd):
+        """
+        Derive the decryption key from password bytes *pwd* using a single
+        application of SHA-1 using non-standard padding.
+        """
+        buf = pwd + bytes([0x80] + [0] * (64 - len(pwd) - 5))
+        state = []
+        state.extend(struct.unpack('<15L', buf))
+        state.append(len(pwd) << 3)
+        for i in range(len(state), 80):
+            state.append(state[i-16] ^ state[i-14] ^ state[i-8] ^ state[i-3])
+        a = self.SHA1_A
+        b = self.SHA1_B
+        c = self.SHA1_C
+        d = self.SHA1_D
+        e = self.SHA1_E
+        for i in range(20):
+            a, b, c, d, e = \
+                c_sum32(c_rot32(a, 5), ((b&c)|(~b&d)), e, state[i],
+                        0x5a827999), a, c_rot32(b, 30), c, d
+        for i in range(20, 40):
+            a, b, c, d, e = \
+                c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
+                        0x6ed9eba1), a, c_rot32(b, 30), c, d
+        for i in range(40, 60):
+            a, b, c, d, e = \
+                c_sum32(c_rot32(a, 5), ((b&c)|(b&d)|(c&d)), e, state[i],
+                        0x8f1bbcdc), a, c_rot32(b, 30), c, d
+        for i in range(60, 80):
+            a, b, c, d, e = \
+                c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
+                        0xca62c1d6), a, c_rot32(b, 30), c, d
+        a = c_add32(a, self.SHA1_A)
+        b = c_add32(b, self.SHA1_B)
+        c = c_add32(c, self.SHA1_C)
+        d = c_add32(d, self.SHA1_D)
+        e = c_add32(e, self.SHA1_E)
+        return (a, b, c, d, e)
 
     def _bf_init(self, key):
         """
@@ -621,13 +691,14 @@ class EncryptedFileIO:
         r ^= self.__p[0]
         return (r, l)
 
-    def _bf_cbc_decrypt(self, buf):
+    def decrypt(self, buf):
         """
-        Decrypt a buffer in CBC mode with an IV of all zeroes on the first
-        call, and an IV of the last ciphertext block on subsequent calls.
+        Decrypt a buffer of complete blocks.
+        AceBlowfish uses Blowfish in CBC mode with an IV of all zeroes on the
+        first call, and an IV of the last ciphertext block on subsequent calls.
         Does not remove any padding.
         """
-        assert len(buf) % 8 == 0
+        assert len(buf) % self.blocksize == 0
         out = []
         for i in range(0, len(buf), 8):
             cl, cr = struct.unpack('<LL', buf[i:i+8])
@@ -639,64 +710,9 @@ class EncryptedFileIO:
             out.append(struct.pack('<LL', pl, pr))
         return b''.join(out)
 
-    def _derive_key(self, pwd):
-        """
-        Derive the decryption key from password bytes *pwd* using a single
-        application of SHA-1 using non-standard padding.
-        """
-        buf = pwd + bytes([0x80] + [0] * (64 - len(pwd) - 5))
-        state = []
-        state.extend(struct.unpack('<15L', buf))
-        state.append(len(pwd) << 3)
-        for i in range(len(state), 80):
-            state.append(state[i-16] ^ state[i-14] ^ state[i-8] ^ state[i-3])
-        a = self.SHA1_A
-        b = self.SHA1_B
-        c = self.SHA1_C
-        d = self.SHA1_D
-        e = self.SHA1_E
-        for i in range(20):
-            a, b, c, d, e = \
-                c_sum32(c_rot32(a, 5), ((b&c)|(~b&d)), e, state[i],
-                        0x5a827999), a, c_rot32(b, 30), c, d
-        for i in range(20, 40):
-            a, b, c, d, e = \
-                c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
-                        0x6ed9eba1), a, c_rot32(b, 30), c, d
-        for i in range(40, 60):
-            a, b, c, d, e = \
-                c_sum32(c_rot32(a, 5), ((b&c)|(b&d)|(c&d)), e, state[i],
-                        0x8f1bbcdc), a, c_rot32(b, 30), c, d
-        for i in range(60, 80):
-            a, b, c, d, e = \
-                c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
-                        0xca62c1d6), a, c_rot32(b, 30), c, d
-        a = c_add32(a, self.SHA1_A)
-        b = c_add32(b, self.SHA1_B)
-        c = c_add32(c, self.SHA1_C)
-        d = c_add32(d, self.SHA1_D)
-        e = c_add32(e, self.SHA1_E)
-        return (a, b, c, d, e)
-
-    def seekable():
-        return False
-
-    def read(self, n):
-        if n < len(self.__buffer):
-            rbuf = self.__buffer[:n]
-            self.__buffer = self.__buffer[n:]
-            return rbuf
-        want_bytes = n - len(self.__buffer)
-        read_bytes = want_bytes
-        if want_bytes & 0x7:
-            read_bytes += 8 - (want_bytes & 0x7)
-        buf = self.__file.read(read_bytes)
-        if len(buf) & 0x7:
-            raise TruncatedArchiveError()
-        buf = self._bf_cbc_decrypt(buf)
-        rbuf = self.__buffer + buf[:n]
-        self.__buffer = buf[n:]
-        return rbuf
+    @property
+    def blocksize(self):
+        return 8
 
 
 
@@ -2963,7 +2979,7 @@ class AceArchive:
             if am.is_enc():
                 if not pwd:
                     raise EncryptedArchiveError()
-                f = EncryptedFileIO(f, pwd)
+                f = EncryptedFileIO(f, AceBlowfish(pwd))
 
             # Choose the matching decompressor based on the first header.
             if am.comptype == Header.COMP_STORE:
