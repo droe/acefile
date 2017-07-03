@@ -775,6 +775,12 @@ class AceCRC16(AceCRC32):
     Calculate an ACE CRC-16 checksum, which is actually just the lower 16 bits
     of an ACE CRC-32.
     """
+    def __str__(self):
+        """
+        String representation of object is hex value of checksum.
+        """
+        return "0x%04x" % self.sum
+
     @property
     def sum(self):
         """
