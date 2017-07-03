@@ -2648,6 +2648,9 @@ class AceVolume:
     def get_file_headers(self):
         return self.__file_headers
 
+    def is_locked(self):
+        return self.__main_header.flag(Header.FLAG_LOCKED)
+
     def is_multivolume(self):
         return self.__main_header.flag(Header.FLAG_MULTIVOLUME)
 
@@ -3055,6 +3058,12 @@ class AceArchive:
         for volume in self.__volumes:
             volume.dumpheaders()
 
+    def is_locked(self):
+        """
+        Return True iff archive is locked for further modifications.
+        """
+        return self.__volumes[0].is_locked()
+
     def is_multivolume(self):
         """
         Return True iff archive is a multi-volume archive as determined
@@ -3075,6 +3084,9 @@ class AceArchive:
     def advert(self):
         """
         ACE archive level advert string.
+        Unregistered versions communicate that they are unregistered by
+        writing *UNREGISTERED VERSION* as the advert string of all archives
+        they create.
         """
         return self.__volumes[0].advert
 
@@ -3229,12 +3241,24 @@ def unace():
             eprint("processing archive %s" % f.filename)
             eprint("loaded %i volume(s) starting at volume %i" % (
                    f.volumes_loaded, f.volume))
-            eprint("created on %s with ACE %s for extraction with %s+" % (
-                   f.platform, f.cversion/10, f.eversion/10))
+            archinfo = []
+            if not f.is_locked():
+                archinfo.append('not ')
+            archinfo.append('locked, ')
+            if not f.is_multivolume():
+                archinfo.append('not ')
+            archinfo.append('multi-volume, ')
+            if not f.is_solid():
+                archinfo.append('not ')
+            archinfo.append('solid')
+            eprint("archive is", ''.join(archinfo))
             eprint("last modified %s" % (
                    f.mtime.strftime('%Y-%m-%d %H:%M:%S')))
+            eprint("created on %s with ACE %s for extraction with %s+" % (
+                   f.platform, f.cversion/10, f.eversion/10))
             if f.advert:
-                eprint("by", f.advert)
+                eprint("advert [%s]" % f.advert)
+
             if f.is_multivolume() and f.volume > 0:
                 eprint("warning: this is not the initial volume of this "
                        "multi-volume archive")
@@ -3346,7 +3370,7 @@ def unace():
 
         elif args.mode == 'list':
             if args.verbose:
-                eprint(("CQD TE      size     packed   rel  "
+                eprint(("CQD FE      size     packed   rel  "
                         "timestamp            filename"))
                 count = count_size = count_packsize = 0
                 for am in f.getmembers():

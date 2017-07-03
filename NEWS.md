@@ -1,6 +1,8 @@
 
 ### acefile 0.5.3-dev
 
+-   Add AceArchive.is_locked().
+-   Replace AceMember.params with decoded AceMember.dicbits.
 -   Show more metadata in CLI --verbose archive info and --list.
 
 
