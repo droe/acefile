@@ -693,7 +693,8 @@ class AceBlowfish:
 
     def decrypt(self, buf):
         """
-        Decrypt a buffer of complete blocks.
+        Decrypt a buffer of complete blocks, i.e. of length that is a multiple
+        of the block size returned by the blocksize property.
         AceBlowfish uses Blowfish in CBC mode with an IV of all zeroes on the
         first call, and an IV of the last ciphertext block on subsequent calls.
         Does not remove any padding.
@@ -712,6 +713,11 @@ class AceBlowfish:
 
     @property
     def blocksize(self):
+        """
+        Return the block size of the decryption engine in bytes.
+        The decrypt() method will only accept buffers containing a multiple of
+        the block size of bytes.
+        """
         return 8
 
 
@@ -820,8 +826,8 @@ def ace_crc16(buf):
 
 class BitStream:
     """
-    Intel-endian 32bit-byte-swapped, MSB first bitstream, reading
-    from a file-like object.
+    Intel-endian 32bit-byte-swapped, MSB first bitstream, reading from an
+    underlying file-like object that does not need to be seekable.
     """
     class Depleted(Exception):
         """
@@ -1539,48 +1545,46 @@ class Sound:
 
 
 
+def classinit_pic(cls):
+    """
+    Decorator that calculates the static tables for the Pic class.
+    This ensures that the tables are calculated exactly once.
+    """
+    cls._dif_bit_width = []
+    for i in range(0, 128):
+        cls._dif_bit_width.append((2 * i).bit_length())
+    for i in range(-128, 0):
+        cls._dif_bit_width.append((- 2 * i - 1).bit_length())
+    cls._quantizer   = []
+    cls._quantizer9  = []
+    cls._quantizer81 = []
+    for i in range(-255, -20):
+        cls._quantizer.append(-4)
+    for i in range(-20, -6):
+        cls._quantizer.append(-3)
+    for i in range(-6, -2):
+        cls._quantizer.append(-2)
+    for i in range(-2, 0):
+        cls._quantizer.append(-1)
+    cls._quantizer.append(0)
+    for i in range(1, 3):
+        cls._quantizer.append(1)
+    for i in range(3, 7):
+        cls._quantizer.append(2)
+    for i in range(7, 21):
+        cls._quantizer.append(3)
+    for i in range(21, 256):
+        cls._quantizer.append(4)
+    for q in cls._quantizer:
+        cls._quantizer9.append(9 * q)
+        cls._quantizer81.append(81 * q)
+    return cls
+
+@classinit_pic
 class Pic:
     """
     ACE 2.0 PIC mode decompression engine.
     """
-    NUMCONTEXTS         = 365
-    N0                  = 128
-    S1                  = 3
-    S2                  = 7
-    S3                  = 21
-
-    def __init__(self):
-        self.__dif_bit_width = [0] * 256
-        for i in range(0, 128):
-            self.__dif_bit_width[i] = (2 * i).bit_length()
-        for i in range(-128, 0):
-            self.__dif_bit_width[i] = (- 2 * i - 1).bit_length()
-        self.__quantizer   = [0] * 511
-        self.__quantizer9  = [0] * 511
-        self.__quantizer81 = [0] * 511
-        for i in range(-255, 256):
-            if   i <= -Pic.S3:
-                self.__quantizer[255+i] = -4
-            elif i <= -Pic.S2:
-                self.__quantizer[255+i] = -3
-            elif i <= -Pic.S1:
-                self.__quantizer[255+i] = -2
-            elif i <= -1:
-                self.__quantizer[255+i] = -1
-            elif i == 0:
-                self.__quantizer[255+i] =  0
-            elif i < Pic.S1:
-                self.__quantizer[255+i] =  1
-            elif i < Pic.S2:
-                self.__quantizer[255+i] =  2
-            elif i < Pic.S3:
-                self.__quantizer[255+i] =  3
-            else:
-                self.__quantizer[255+i] =  4
-        for i in range(-255, 256):
-            self.__quantizer9 [255+i] = 9 * self.__quantizer [255+i]
-        for i in range(-255, 256):
-            self.__quantizer81[255+i] = 9 * self.__quantizer9[255+i]
 
     class Context:
         def __init__(self):
@@ -1590,9 +1594,14 @@ class Pic:
             self.error_counters = [0] * 4
 
     class Model:
-        def __init__(self):
-            self.contexts = [Pic.Context() for i in range(Pic.NUMCONTEXTS)]
+        NUMCTX  = 365
 
+        def __init__(self):
+            self.contexts = [Pic.Context() for i in range(Pic.Model.NUMCTX)]
+
+
+    def __init__(self):
+        pass
 
     def reinit(self, bs):
         """
@@ -1664,9 +1673,9 @@ class Pic:
             self.__pixel_d -= (prev_val * 11 >> 4) - 128
         self.__pixel_d &= 0xFF
 
-        ctx = self.__quantizer81[255 + self.__pixel_d - self.__pixel_a] + \
-              self.__quantizer9 [255 + self.__pixel_a - self.__pixel_c] + \
-              self.__quantizer  [255 + self.__pixel_c - self.__pixel_b]
+        ctx = self._quantizer81[255 + self.__pixel_d - self.__pixel_a] + \
+              self._quantizer9 [255 + self.__pixel_a - self.__pixel_c] + \
+              self._quantizer  [255 + self.__pixel_c - self.__pixel_b]
         return abs(ctx)
 
     def _get_pixel_x(self, bs, context):
@@ -1679,7 +1688,7 @@ class Pic:
 
         for i in range(len(context.error_counters)):
             context.error_counters[i] += \
-                    self.__dif_bit_width[c_uchar(pixel_x - self._predict(i))]
+                    self._dif_bit_width[c_uchar(pixel_x - self._predict(i))]
             if i == 0 or context.error_counters[i] < \
                          context.error_counters[best_predictor]:
                 best_predictor = i
@@ -1691,7 +1700,7 @@ class Pic:
         context.predictor_number = best_predictor
         context.average_counter += abs(epsilon)
 
-        if context.used_counter == Pic.N0:
+        if context.used_counter == 128:
             context.used_counter >>= 1
             context.average_counter >>= 1
 
