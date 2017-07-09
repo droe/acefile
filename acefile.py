@@ -1075,11 +1075,11 @@ class Huffman:
         max_codes = 1 << max_width
         for sym, wdt in zip(reversed(sorted_symbols), reversed(sorted_widths)):
             if wdt > max_width:
-                raise CorruptedArchiveError("frequencies[i] > max_width")
+                raise CorruptedArchiveError("wdt > max_width")
             repeat = 1 << (max_width - wdt)
             codes.extend([sym] * repeat)
             if len(codes) > max_codes:
-                raise CorruptedArchiveError("len(codes) > (1 << max_width)")
+                raise CorruptedArchiveError("len(codes) > max_codes")
 
         return Huffman.Tree(codes, widths, max_width)
 
