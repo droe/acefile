@@ -2314,7 +2314,7 @@ class EncryptedArchiveError(AceError):
     """
     pass
 
-class UnknownMethodError(AceError):
+class UnknownCompressionMethodError(AceError):
     """
     Data was compressed using an unknown compression method and therefore
     cannot be decompressed.
@@ -3006,7 +3006,7 @@ class AceArchive:
             elif am.comptype == Header.COMP_BLOCKED:
                 decompressor = self.__ace.decompress_blocked
             else:
-                raise UnknownMethodError()
+                raise UnknownCompressionMethodError()
 
             # Decompress and calculate CRC over full decompressed data,
             # i.e. after decryption and across all segments that may have
@@ -3179,9 +3179,9 @@ def is_acefile(file, *, search=524288):
 
 builtin_open = open
 open = AceArchive.open
-AceFile = AceArchive
-__all__ = ['is_acefile', 'AceFile', 'AceArchive']
-__all__.extend(filter(lambda name: name.endswith('Error'), list(globals())))
+__all__ = ['is_acefile', 'AceArchive']
+__all__.extend(filter(lambda name: name.endswith('Error'),
+                      sorted(list(globals()))))
 
 
 
