@@ -2370,7 +2370,7 @@ class AceMember:
         self.raw_filename   = filehdrs[0].filename
         self.filename       = self._sanitize_filename(filehdrs[0].filename)
         self.size           = filehdrs[0].origsize
-        self.mtime          = _dt_fromdos(filehdrs[0].datetime)
+        self.datetime       = _dt_fromdos(filehdrs[0].datetime)
         self.attribs        = filehdrs[0].attribs
         self.comment        = filehdrs[0].comment.decode('utf-8',
                                                          errors='replace')
@@ -2688,7 +2688,7 @@ class AceVolume:
         return self.__filename
 
     @property
-    def mtime(self):
+    def datetime(self):
         return _dt_fromdos(self.__main_header.datetime)
 
     @property
@@ -3130,11 +3130,11 @@ class AceArchive:
         return self.__volumes[0].filename
 
     @property
-    def mtime(self):
+    def datetime(self):
         """
         Archive modification timestamp as datetime object.
         """
-        return self.__volumes[0].mtime
+        return self.__volumes[0].datetime
 
     @property
     def platform(self):
@@ -3263,7 +3263,7 @@ def unace():
             archinfo.append('solid')
             eprint("archive is", ''.join(archinfo))
             eprint("last modified %s" % (
-                   f.mtime.strftime('%Y-%m-%d %H:%M:%S')))
+                   f.datetime.strftime('%Y-%m-%d %H:%M:%S')))
             eprint("created on %s with ACE %s for extraction with %s+" % (
                    f.platform, f.cversion/10, f.eversion/10))
             if f.advert:
@@ -3402,7 +3402,7 @@ def unace():
                         am.size,
                         am.packsize,
                         ratio,
-                        am.mtime.strftime('%Y-%m-%d %H:%M:%S'),
+                        am.datetime.strftime('%Y-%m-%d %H:%M:%S'),
                         am.filename))
                     if am.comment:
                         eprint(asciibox(am.comment, title='file comment'))
