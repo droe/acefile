@@ -2,6 +2,7 @@
 ### acefile 0.5.3-dev
 
 -   Remove the AceFile alias of the AceArchive class.
+-   Remove AceArchive.open from public API.
 -   Rename UnknownMethodError to UnknownCompressionMethodError.
 -   Change AceArchive.mtime and AceMember.mtime to .datetime in order to avoid
     confusion as ACE does not have separate modification and creation times.

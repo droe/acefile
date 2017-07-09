@@ -2705,15 +2705,14 @@ class AceArchive:
     """
     Open an ACE archive, possibly consisting of multiple volumes, and interact
     with the archive's members in ways modeled after the tarfile API.
-    Aliased to AceFile for consistency with the tarfile/zipfile API.
     """
 
     @classmethod
-    def open(cls, *args, **kvargs):
+    def _open(cls, file, mode='r', *, search=524288):
         """
         Alternative constructor for AceArchive, aliased to acefile.open().
         """
-        return cls(*args, **kvargs)
+        return cls(file, mode, search=search)
 
     def __init__(self, file, mode='r', *, search=524288):
         """
@@ -3178,7 +3177,7 @@ def is_acefile(file, *, search=524288):
 
 
 builtin_open = open
-open = AceArchive.open
+open = AceArchive._open
 __all__ = ['is_acefile', 'AceArchive']
 __all__.extend(filter(lambda name: name.endswith('Error'),
                       sorted(list(globals()))))
