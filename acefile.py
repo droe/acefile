@@ -2160,20 +2160,20 @@ class MainHeader(Header):
         self.volume     = None      # uint8     volume number
         self.datetime   = None      # uint32    date/time in MS-DOS format
         self.reserved1  = None      # uint8[8]
-        self.advert     = ''        # [uint8]   optional
-        self.comment    = ''        # [uint16]  optional, compressed
+        self.advert     = b''       # [uint8]   optional
+        self.comment    = b''       # [uint16]  optional, compressed
         self.reserved2  = None      # [?]       optional
 
     def __str__(self):
         return super().__str__() + """
-    magic       %s
+    magic       %r
     eversion    %i          %s
     cversion    %i          %s
     host        0x%02x        %s
     volume      %i
     datetime    0x%08x  %s
     reserved1   %02x %02x %02x %02x %02x %02x %02x %02x
-    advert      %s
+    advert      %r
     comment     %r
     reserved2   %r""" % (
                 self.magic,
@@ -2213,7 +2213,7 @@ class FileHeader(Header):
         self.params     = None      # uint16    decompression parameters
         self.reserved1  = None      # uint16
         self.filename   = None      # [uint16]
-        self.comment    = ''        # [uint16]  optional, compressed
+        self.comment    = b''       # [uint16]  optional, compressed
         self.reserved2  = None      # ?
         self.dataoffset = None      #           position of data after hdr
 
@@ -2228,7 +2228,7 @@ class FileHeader(Header):
     compqual    0x%02x        %s
     params      0x%04x
     reserved1   0x%04x
-    filename    %s
+    filename    %r
     comment     %r
     reserved2   %r""" % (
                 self.packsize,
@@ -2331,8 +2331,9 @@ class AceMember:
     @staticmethod
     def _sanitize_filename(filename):
         """
-        Sanitize filename for security and platform independence.
+        Decode and sanitize filename for security and platform independence.
         """
+        filename = filename.decode('utf-8', errors='replace')
         # treat null byte as filename terminator
         nullbyte = filename.find(chr(0))
         if nullbyte >= 0:
@@ -2366,12 +2367,13 @@ class AceMember:
         self._idx           = idx
         self._file          = f
         self._headers       = filehdrs
-        self.orig_filename  = filehdrs[0].filename
+        self.raw_filename   = filehdrs[0].filename
         self.filename       = self._sanitize_filename(filehdrs[0].filename)
         self.size           = filehdrs[0].origsize
         self.mtime          = _dt_fromdos(filehdrs[0].datetime)
         self.attribs        = filehdrs[0].attribs
-        self.comment        = filehdrs[0].comment
+        self.comment        = filehdrs[0].comment.decode('utf-8',
+                                                         errors='replace')
         self.crc32          = filehdrs[-1].crc32
         self.comptype       = filehdrs[0].comptype
         self.compqual       = filehdrs[0].compqual
@@ -2572,7 +2574,7 @@ class AceVolume:
                 i += 1
                 if i + avsz > len(buf):
                     raise CorruptedArchiveError()
-                header.advert = buf[i:i+avsz].decode('utf-8', errors='replace')
+                header.advert = buf[i:i+avsz]
                 i += avsz
             if header.flag(Header.FLAG_COMMENT):
                 if i + 2 > len(buf):
@@ -2581,8 +2583,7 @@ class AceVolume:
                 i += 2
                 if i + cmsz > len(buf):
                     raise CorruptedArchiveError()
-                comment = ACE.decompress_comment(buf[i:i+cmsz])
-                header.comment = comment.decode('utf-8', errors='replace')
+                header.comment = ACE.decompress_comment(buf[i:i+cmsz])
                 i += cmsz
             header.reserved2 = buf[i:]
             if self.__main_header != None:
@@ -2622,7 +2623,7 @@ class AceVolume:
             i += 20
             if i + fnsz > len(buf):
                 raise CorruptedArchiveError()
-            header.filename = buf[i:i+fnsz].decode('utf-8', errors='replace')
+            header.filename = buf[i:i+fnsz]
             i += fnsz
             if header.flag(Header.FLAG_COMMENT):
                 if i + 2 > len(buf):
@@ -2631,8 +2632,7 @@ class AceVolume:
                 i += 2
                 if i + cmsz > len(buf):
                     raise CorruptedArchiveError()
-                comment = ACE.decompress_comment(buf[i:i+cmsz])
-                header.comment = comment.decode('utf-8', errors='replace')
+                header.comment = ACE.decompress_comment(buf[i:i+cmsz])
                 i += cmsz
             header.reserved2 = buf[i:]
             header.dataoffset = self.__file.tell()
@@ -2669,11 +2669,11 @@ class AceVolume:
 
     @property
     def advert(self):
-        return self.__main_header.advert
+        return self.__main_header.advert.decode('utf-8', errors='replace')
 
     @property
     def comment(self):
-        return self.__main_header.comment
+        return self.__main_header.comment.decode('utf-8', errors='replace')
 
     @property
     def cversion(self):
