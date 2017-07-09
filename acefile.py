@@ -1227,11 +1227,11 @@ class LZ77:
         self.__disthist = LZ77.DistHist()
         self.__leftover = []
 
-    def set_dicbits(self, dicbits):
+    def dic_setsize(self, dicsize):
         """
-        Set the dicbits parameter, indicating minimum required dictionary size.
+        Set the required dictionary size for the next LZ77 decompression run.
         """
-        self.__dicsize = min(max(1 << dicbits, self.__dicsize), LZ77.MAXDICSIZE)
+        self.__dicsize = min(max(dicsize, self.__dicsize), LZ77.MAXDICSIZE)
 
     def dic_copy(self, buf):
         """
@@ -1815,14 +1815,14 @@ class ACE:
         self.__sound = Sound()
         self.__pic   = Pic()
 
-    def decompress_stored(self, f, filesize, dicbits):
+    def decompress_stored(self, f, filesize, dicsize):
         """
         Decompress data compressed using the store method from file-like-object
         *f* containing compressed bytes that will be decompressed to *filesize*
         bytes.  Decompressed data will be yielded in blocks of undefined size
         upon availability.  Empty files will return without yielding anything.
         """
-        self.__lz77.set_dicbits(dicbits)
+        self.__lz77.dic_setsize(dicsize)
         producedsize = 0
         while producedsize < filesize:
             wantsize = min(filesize - producedsize, FILE_BLOCKSIZE)
@@ -1833,14 +1833,14 @@ class ACE:
             yield outchunk
             producedsize += len(outchunk)
 
-    def decompress_lz77(self, f, filesize, dicbits):
+    def decompress_lz77(self, f, filesize, dicsize):
         """
         Decompress data compressed using the ACE 1.0 legacy LZ77 method from
         file-like-object *f* containing compressed bytes that will be
         decompressed to *filesize* bytes.  Decompressed data will be yielded
         in blocks of undefined size upon availability.
         """
-        self.__lz77.set_dicbits(dicbits)
+        self.__lz77.dic_setsize(dicsize)
         self.__lz77.reinit()
         bs = BitStream(f)
         producedsize = 0
@@ -1851,7 +1851,7 @@ class ACE:
             yield outchunk
             producedsize += len(outchunk)
 
-    def decompress_blocked(self, f, filesize, dicbits):
+    def decompress_blocked(self, f, filesize, dicsize):
         """
         Decompress data compressed using the ACE 2.0 blocked method from
         file-like-object *f* containing compressed bytes that will be
@@ -1859,7 +1859,7 @@ class ACE:
         in blocks of undefined size upon availability.
         """
         bs = BitStream(f)
-        self.__lz77.set_dicbits(dicbits)
+        self.__lz77.dic_setsize(dicsize)
         self.__lz77.reinit()
 
         # LZ77_EXE
@@ -2376,6 +2376,7 @@ class AceMember:
         self.comptype       = filehdrs[0].comptype
         self.compqual       = filehdrs[0].compqual
         self.dicbits        = (filehdrs[0].params & 15) + 10
+        self.dicsize        = 1 << self.dicbits
         self.packsize       = 0
         for hdr in filehdrs:
             self.packsize += hdr.packsize
@@ -3012,7 +3013,7 @@ class AceArchive:
             # been read from different volumes.
             crc = AceCRC32()
             try:
-                for block in decompressor(f, am.size, am.dicbits):
+                for block in decompressor(f, am.size, am.dicsize):
                     crc += block
                     yield block
             except CorruptedArchiveError:
