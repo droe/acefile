@@ -9,7 +9,6 @@ assert re.match(r'[0-9]+\.[0-9]+\.[0-9]+$', acefile.__version__)
 
 title, desc = acefile.__doc__.strip().split('\n', 1)
 desc = desc.strip()
-dlurl = 'https://github.com/droe/acefile/tarball/%s' % acefile.__version__
 
 setup(
     name='acefile',
@@ -17,7 +16,6 @@ setup(
     description=title,
     long_description=desc,
     url=acefile.__url__,
-    download_url=dlurl,
     author=acefile.__author__,
     author_email=acefile.__email__,
     license=acefile.__license__,
