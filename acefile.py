@@ -2457,6 +2457,25 @@ class AceMember:
         for hdr in filehdrs:
             self.__packsize += hdr.packsize
 
+    def is_dir(self):
+        """
+        True iff :class:`AceMember` object describes a directory.
+        """
+        return self.attribs & Header.ATTR_DIRECTORY != 0
+
+    def is_enc(self):
+        """
+        True iff :class:`AceMember` object describes an encrypted archive
+        member.
+        """
+        return self._headers[0].flag(Header.FLAG_PASSWORD)
+
+    def is_reg(self):
+        """
+        True iff :class:`AceMember` object describes a regular file.
+        """
+        return not self.is_dir()
+
     @property
     def attribs(self):
         """
@@ -2556,25 +2575,6 @@ class AceMember:
         Size after decompression (original size).
         """
         return self.__size
-
-    def is_dir(self):
-        """
-        True iff :class:`AceMember` object describes a directory.
-        """
-        return self.attribs & Header.ATTR_DIRECTORY != 0
-
-    def is_reg(self):
-        """
-        True iff :class:`AceMember` object describes a regular file.
-        """
-        return not self.is_dir()
-
-    def is_enc(self):
-        """
-        True iff :class:`AceMember` object describes an encrypted archive
-        member.
-        """
-        return self._headers[0].flag(Header.FLAG_PASSWORD)
 
 
 
