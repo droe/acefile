@@ -3,6 +3,7 @@
 
 -   Remove the AceFile alias of the AceArchive class.
 -   Remove AceArchive.open from public API.
+-   Remove TruncatedArchiveError and use CorruptedArchiveError instead.
 -   Rename UnknownMethodError to UnknownCompressionMethodError.
 -   Change AceArchive.mtime and AceMember.mtime to .datetime in order to avoid
     confusion as ACE does not have separate modification and creation times.

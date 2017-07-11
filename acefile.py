@@ -344,7 +344,7 @@ class EncryptedFileIO:
             read_bytes += blocksize - (want_bytes % blocksize)
         buf = self.__file.read(read_bytes)
         if len(buf) % blocksize:
-            raise TruncatedArchiveError()
+            raise CorruptedArchiveError()
         buf = self.__engine.decrypt(buf)
         rbuf = self.__buffer + buf[:n]
         self.__buffer = buf[n:]
@@ -1908,7 +1908,7 @@ class ACE:
             wantsize = min(filesize - producedsize, FILE_BLOCKSIZE)
             outchunk = f.read(wantsize)
             if len(outchunk) == 0:
-                raise TruncatedArchiveError()
+                raise CorruptedArchiveError()
             self.__lz77.dic_copy(outchunk)
             yield outchunk
             producedsize += len(outchunk)
@@ -2371,12 +2371,6 @@ class MultiVolumeArchiveError(AceError):
     """
     pass
 
-class TruncatedArchiveError(AceError):
-    """
-    Archive is truncated.
-    """
-    pass
-
 class CorruptedArchiveError(AceError):
     """
     Archive is corrupted.  Either a CRC check failed or an invalid value was
@@ -2689,7 +2683,7 @@ class AceVolume:
             try:
                 self._parse_header()
                 found_at_start = True
-            except (CorruptedArchiveError, TruncatedArchiveError):
+            except CorruptedArchiveError:
                 pass
         if not found_at_start:
             if search == 0:
@@ -2705,7 +2699,7 @@ class AceVolume:
                 try:
                     self._parse_header()
                     break
-                except (CorruptedArchiveError, TruncatedArchiveError):
+                except CorruptedArchiveError:
                     continue
         while self.__file.tell() < self.__filesize:
             self._parse_header()
@@ -2713,18 +2707,18 @@ class AceVolume:
     def _parse_header(self):
         """
         Parse a single header from self.__file at the current file position.
-        Raises CorruptedArchiveError or TruncatedArchiveError if the header
-        cannot be parsed.  Guarantees that no data is written to object state
+        Raises CorruptedArchiveError if the header cannot be parsed.
+        Guarantees that no data is written to object state
         if an exception is thrown, otherwise the header is added to
         self.__main_header, self.__file_headers and/or self.__all_headers.
         """
         buf = self.__file.read(4)
         if len(buf) < 4:
-            raise TruncatedArchiveError()
+            raise CorruptedArchiveError()
         hcrc, hsize = struct.unpack('<HH', buf)
         buf = self.__file.read(hsize)
         if len(buf) < hsize:
-            raise TruncatedArchiveError()
+            raise CorruptedArchiveError()
         if ace_crc16(buf) != hcrc:
             raise CorruptedArchiveError()
         htype, hflags = struct.unpack('<BH', buf[0:3])
