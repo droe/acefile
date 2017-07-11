@@ -10,6 +10,9 @@ SDISTSIG=	$(SDIST:=.asc)
 
 all: dist sign
 
+apidoc:
+	$(MAKE) -C apidoc all
+
 dist: $(SDIST)
 
 $(SDIST):
@@ -27,11 +30,12 @@ test:
 	$(PYTHON) acefile.py --doctest
 
 clean:
+	$(MAKE) -C apidoc clean
 	find . -depth -name '__pycache__' -type d -exec rm -r '{}' \;
 	rm -rf acefile.egg-info
 
 todo:
 	egrep -r 'XXX|TODO|FIXME' *.py
 
-.PHONY: all dist sign upload test clean todo
+.PHONY: all apidoc dist sign upload test clean todo
 

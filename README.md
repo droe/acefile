@@ -1,7 +1,6 @@
 # acefile - read/test/extract ACE 1.0 and 2.0 archives in pure python
 Copyright (C) 2017, [Daniel Roethlisberger](//daniel.roe.ch/).  
 https://www.roe.ch/acefile  
-https://pypi.python.org/pypi/acefile
 
 
 ## Synopsis
@@ -10,7 +9,7 @@ https://pypi.python.org/pypi/acefile
 
     # python library
     import acefile
-    with acefile.open("example.ace") as f:
+    with acefile.open('example.ace') as f:
         f.extractall()
 
     # unace utility
@@ -19,18 +18,24 @@ https://pypi.python.org/pypi/acefile
 
 ## Overview
 
-This single-file, pure-python, no-dependencies python 3 implementation is
-designed to be used both as a library and as a stand-alone unace utility.
-The library API is modeled after tarfile.  As pure-python implementation,
-it is significantly slower than native implementations.
+This single-file, pure python 3, no-dependencies implementation is intended
+to be used as a library, but also provides a stand-alone unace utility.
+As pure-python implementation, it is significantly slower than
+native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,
 including the EXE, DIFF, PIC and SOUND modes of ACE 2.0, password protected
-archives and multi-volume archives.
+archives and multi-volume archives.  It is an implementation from scratch,
+based on the 1998 document titled "Technical information of the archiver ACE
+v1.2" by Marcel Lemke, using unace 2.5 and WinAce 2.69 by Marcel Lemke as
+reference implementations.
 
-This is an implementation from scratch, based on the 1998 document titled
-"Technical information of the archiver ACE v1.2" by Marcel Lemke, using
-unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
+For more information, API documentation, source code and packages, see:
+
+- https://www.roe.ch/acefile
+- https://apidoc.roe.ch/acefile
+- https://github.com/droe/acefile
+- https://pypi.python.org/pypi/acefile
 
 
 ## Requirements
@@ -43,7 +48,7 @@ Python 3.  No other dependencies.
     pip install acefile
 
 
-## Library usage
+## Library usage examples
 
 Extract all files in the archive, with directories, to current working dir:
 
@@ -59,9 +64,9 @@ Walk all files in the archive and test each one of them:
             if f.is_dir():
                 continue
             if f.test(member):
-                print("CRC OK:    %s" % member.filename)
+                print("CRC OK:     %s" % member.filename)
             else:
-                print("CRC FAIL:  %s" % member.filename)
+                print("CRC FAIL:   %s" % member.filename)
 
 In-memory decompression of a specific archive member:
 
@@ -72,7 +77,8 @@ In-memory decompression of a specific archive member:
     with acefile.open(filelike) as f:
         data = f.read('example.txt')
 
-Handle large archives in chunks to avoid fully reading them into memory:
+Handle archives potentially containing large members in chunks to avoid fully
+reading them into memory:
 
     import acefile
 
@@ -81,18 +87,18 @@ Handle large archives in chunks to avoid fully reading them into memory:
             for block in fi.readblocks('large.iso'):
                 fo.write(block)
 
-Check the source for more functionality.
+Check the API documentation for a complete description of the API.
 
 
-## Utility usage
+## Utility usage examples
 
 Extract all files in the archive, with directories, to current working dir:
 
     acefile-unace -x example.ace
 
-Test all files in the archive:
+Test all files in the archive, verbosely:
 
-    acefile-unace -t example.ace
+    acefile-unace -tv example.ace
 
 List archive contents, verbosely:
 

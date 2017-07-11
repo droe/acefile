@@ -33,18 +33,24 @@
 """
 Read/test/extract ACE 1.0 and 2.0 archives in pure python.
 
-This single-file, pure-python, no-dependencies python 3 implementation is
-designed to be used both as a library and as a stand-alone unace utility.
-The library API is modeled after tarfile.  As pure-python implementation,
-it is significantly slower than native implementations.
+This single-file, pure python 3, no-dependencies implementation is intended
+to be used as a library, but also provides a stand-alone unace utility.
+As pure-python implementation, it is significantly slower than
+native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,
 including the EXE, DIFF, PIC and SOUND modes of ACE 2.0, password protected
-archives and multi-volume archives.
+archives and multi-volume archives.  It is an implementation from scratch,
+based on the 1998 document titled "Technical information of the archiver ACE
+v1.2" by Marcel Lemke, using unace 2.5 and WinAce 2.69 by Marcel Lemke as
+reference implementations.
 
-This is an implementation from scratch, based on the 1998 document titled
-"Technical information of the archiver ACE v1.2" by Marcel Lemke, using
-unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
+For more information, API documentation, source code and packages, see:
+
+- https://www.roe.ch/acefile
+- https://apidoc.roe.ch/acefile
+- https://github.com/droe/acefile
+- https://pypi.python.org/pypi/acefile
 """
 
 __version__     = '0.5.3-dev'
@@ -2350,13 +2356,14 @@ class FileHeader(Header):
 
 class AceError(Exception):
     """
-    Base class for all acefile errors.
+    Base class for all acefile exceptions.
     """
     pass
 
 class MainHeaderNotFoundError(AceError):
     """
-    The main ACE header marked by the magic bytes **ACE** could not be found.
+    The main ACE header marked by the magic bytes ``**ACE**`` could not be
+    found.
     Either the *search* argument was to small or the archive is not an ACE
     format archive.
     """
@@ -2373,8 +2380,8 @@ class MultiVolumeArchiveError(AceError):
 
 class CorruptedArchiveError(AceError):
     """
-    Archive is corrupted.  Either a CRC check failed or an invalid value was
-    read from the archive.
+    Archive is corrupted.  Either a CRC check failed, an invalid value was
+    read from the archive or the archive is truncated.
     """
     pass
 
@@ -2385,13 +2392,21 @@ class EncryptedArchiveError(AceError):
     Also raised when processing an encrypted solid archive member out of order,
     when any previous archive member uses a different password than the archive
     member currently being accessed.
+
+    .. note::
+
+        Due to the lack of a password verifier in the ACE file format, there is
+        no straightforward way to distinguish a wrong password from a corrupted
+        archive.  If the CRC check of an encrypted archive member fails or an
+        :class:`CorruptedArchiveError` is encountered, it is assumed that the
+        password was wrong and :class:`EncryptedArchiveError` is raised.
     """
     pass
 
 class UnknownCompressionMethodError(AceError):
     """
     Data was compressed using an unknown compression method and therefore
-    cannot be decompressed.
+    cannot be decompressed using this implementation.
     """
     pass
 
@@ -2399,7 +2414,10 @@ class UnknownCompressionMethodError(AceError):
 
 class AceMember:
     """
-    Handle class describing an archive member.
+    Represents a single archive member, potentially spanning multiple
+    archive volumes.
+    :class:`AceMember` is not directly instantiated; instead, instances are
+    returned by :meth:`AceArchive.getmember` and :meth:`AceArchive.getmembers`.
     """
 
     @staticmethod
@@ -2435,7 +2453,7 @@ class AceMember:
 
     def __init__(self, idx, filehdrs, f):
         """
-        Initialize an AceMember object with index within archive *idx*,
+        Initialize an :class:`AceMember` object with index within archive *idx*,
         initial file header *filehdr* and underlying file-like object *f*.
         """
         self._idx           = idx
@@ -2460,7 +2478,7 @@ class AceMember:
     @property
     def attribs(self):
         """
-        DOS/Windows file attributes.
+        DOS/Windows file attribute bit field.
         """
         return self.__attribs
 
@@ -2493,7 +2511,7 @@ class AceMember:
         .. note::
 
             ACE uses an inverted CRC-32 that is not equal to CRC-32 as used
-            by many other archive formats.
+            by other archive formats.
         """
         return self.__crc32
 
@@ -2515,7 +2533,7 @@ class AceMember:
     @property
     def dicsizebits(self):
         """
-        LZ77 dictionary size bit length, i.e. the power of two of the
+        LZ77 dictionary size bit length, i.e. the base-two logarithm of the
         dictionary size required for extraction of this archive member.
         """
         return self.__dicsizebits
@@ -2552,19 +2570,20 @@ class AceMember:
 
     def is_dir(self):
         """
-        True iff AceMember object refers to a directory.
+        True iff :class:`AceMember` object describes a directory.
         """
         return self.attribs & Header.ATTR_DIRECTORY != 0
 
     def is_reg(self):
         """
-        True iff AceMember object refers to a regular file.
+        True iff :class:`AceMember` object describes a regular file.
         """
         return not self.is_dir()
 
     def is_enc(self):
         """
-        True iff AceMember object refers to an encrypted archive member.
+        True iff :class:`AceMember` object describes an encrypted archive
+        member.
         """
         return self._headers[0].flag(Header.FLAG_PASSWORD)
 
@@ -2874,34 +2893,40 @@ class AceVolume:
 
 class AceArchive:
     """
-    Open an ACE archive, possibly consisting of multiple volumes, and interact
-    with the archive's members in ways modeled after the tarfile API.
+    Represents an ACE archive, possibly consisting of multiple volumes.
+    :class:`AceArchive` is not directly instantiated; instead, instances are
+    returned by :meth:`acefile.open`.
+
+    When used as a context manager, :class:`AceArchive` ensures that
+    :meth:`AceArchive.close` is called after the block.
+    When used as an iterator, :class:`AceArchive` yields instances of
+    :class:`AceMember` representing all archive members in order of
+    appearance in the archive.
     """
 
     @classmethod
     def _open(cls, file, mode='r', *, search=524288):
         """
-        Alternative constructor for AceArchive, aliased to acefile.open().
+        Open archive from *file*, which is either a filename or seekable
+        file-like object.  Only *mode* 'r' is implemented.
+        If *search* is 0, the archive must start at position 0 in *file*,
+        otherwise the first *search* bytes are searched for the magic bytes
+        ``**ACE**`` that mark the ACE main header.
+        For 1:1 compatibility with the official unace, 1024 sectors are
+        searched by default, even though none of the SFX stubs that come with
+        WinAce are that large.
+        Multi-volume archives are represented by a single :class:`AceArchive`
+        object to the caller, all operations transparently read into subsequent
+        volumes as required.
+        To load a multi-volume archive, either open the first volume of the
+        series by filename, or provide a list or tuple of all file-like
+        objects or filenames in the correct order in *file*.
         """
         return cls(file, mode, search=search)
 
     def __init__(self, file, mode='r', *, search=524288):
         """
-        Open archive from *file*, which is either a filename or seekable
-        file-like object.  Only *mode* 'r' is implemented.
-        If *search* is 0, the archive must start at position 0 in *file*,
-        otherwise the first *search* bytes are searched for the magic bytes
-        **ACE** that mark the ACE main header.  For 1:1 compatibility with the
-        official unace, 1024 sectors are searched by default, even though
-        none of the SFX stubs that come with WinAce are that large.
-        Multi-volume archives are represented by a single AceArchive object to
-        the caller, all operations transparently read into subsequent volumes
-        as required.
-        To load a multi-volume archive, either open the first volume of the
-        series by filename, or provide a list or tuple of all file-like
-        objects or filenames in the correct order in *file*.
-        *_idx* and *_am* are used internally to chain multiple AceArchive
-        object into one; they should never be used as part of the API.
+        See :meth:`AceArchive._open`.
         """
         if mode != 'r':
             raise NotImplementedError()
@@ -2940,7 +2965,7 @@ class AceArchive:
                         raise MultiVolumeArchiveError()
                     last_volume = vol.volume
 
-            # build list of archive members and their file segments across volumes
+            # build list of members and their file segments across volumes
             self.__members = []
             headers = []
             segments = []
@@ -2980,8 +3005,8 @@ class AceArchive:
 
     def __enter__(self):
         """
-        Using AceArchive as a context manager ensures that close() is called
-        after leaving the block.
+        Using :class:`AceArchive` as a context manager ensures that
+        :meth:`AceArchive.close` is called after leaving the block.
         """
         return self
 
@@ -2990,15 +3015,15 @@ class AceArchive:
 
     def __iter__(self):
         """
-        Using AceArchive as an iterater will iterate over AceMember objects
-        for all archive members.
+        Using :class:`AceArchive` as an iterater will iterate over
+        :class:`AceMember` objects for all archive members.
         """
         self.__next_iter_idx = 0
         return self
 
     def __next__(self):
         """
-        Iterate to the next archive member's AceMember object.
+        Iterate to the next archive member's :class:`AceMember` object.
         """
         if self.__next_iter_idx >= len(self.__members):
             raise StopIteration()
@@ -3013,7 +3038,10 @@ class AceArchive:
 
     def close(self):
         """
-        Close the archive and free all resources.
+        Close the archive and all open files.
+        No other methods may be called after having called
+        :meth:`AceArchive.close`, but calling :meth:`AceArchive.close`
+        multiple times is permitted.
         """
         if self.__tmp_file != None:
             if not isinstance(self.__tmp_file, str):
@@ -3024,8 +3052,9 @@ class AceArchive:
 
     def _getmember_byname(self, name):
         """
-        Return an AceMember object corresponding to archive member name *name*.
-        Raise KeyError if *name* is not present in the archive.
+        Return an :class:`AceMember` object corresponding to archive member
+        name *name*.
+        Raise :class:`KeyError` if *name* is not present in the archive.
         If *name* occurs multiple times in the archive, then the last occurence
         is returned.
         """
@@ -3039,17 +3068,20 @@ class AceArchive:
 
     def _getmember_byidx(self, idx):
         """
-        Return an AceMember object corresponding to archive member index *idx*.
-        Raise IndexError if *idx* is not present in the archive.
+        Return an :class:`AceMember` object corresponding to archive member
+        index *idx*.
+        Raise :class:`IndexError` if *idx* is not present in the archive.
         """
         return self.__members[idx]
 
     def getmember(self, member):
         """
-        Return an AceMember object corresponding to archive member *member*.
-        Raise KeyError or IndexError if *member* is not found in archive.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
+        Return an :class:`AceMember` object corresponding to archive
+        member *member*.
+        Raise :class:`KeyError` or :class:`IndexError` if *member* is not
+        found in archive.
+        *Member* can refer to an :class:`AceMember` object, a member name or
+        an index into the archive member list.
         If *member* is a name and it occurs multiple times in the archive,
         then the last member with matching filename is returned.
         """
@@ -3064,7 +3096,8 @@ class AceArchive:
 
     def getmembers(self):
         """
-        Return a list of AceMember objects for each member of the archive.
+        Return a list of :class:`AceMember` objects for the members of the
+        archive.
         The objects are in the same order as they are in the archive.
         """
         return self.__members
@@ -3078,8 +3111,8 @@ class AceArchive:
     def extract(self, member, *, path=None, pwd=None):
         """
         Extract an archive member to *path* or the current working directory.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
+        *Member* can refer to an :class:`AceMember` object, a member name or
+        an index into the archive member list.
         Returns the normalized path created (a directory or new file).
         Extracting members in a different order than they appear in a solid
         archive works but is very slow, because the decompressor needs to
@@ -3108,8 +3141,9 @@ class AceArchive:
     def extractall(self, *, path=None, members=None, pwd=None):
         """
         Extract *members* or all members from archive to *path* or the current
-        working directory.  Members can contain AceMember objects, member names
-        or indexes into the archive member list.
+        working directory.
+        Members can contain :class:`AceMember` objects, member names or
+        indexes into the archive member list.
         """
         if members == None or members == []:
             members = self.getmembers()
@@ -3131,21 +3165,27 @@ class AceArchive:
         Read the bytes of a member from the archive.
         *Member* can refer to an AceMember object, a member name or an index
         into the archive member list.
-        Using read() for large files is inefficient and may fail for very
-        large files.  Using readblocks() to write the data to disk in blocks
-        ensures that large files can be handled efficiently.
+
         Reading members in a different order than they appear in a solid
         archive works but is very slow, because the decompressor needs to
         restart at the beginning of the solid archive to restore internal
         decompressor state.
+
+        .. note:
+
+            Using :meth:`AceArchive.read` for large files is inefficient and
+            may fail for very large files.
+            Using :meth:`AceArchive.readblocks` to write the data to disk in
+            blocks ensures that large files can be handled efficiently.
         """
         return b''.join(self.readblocks(member, pwd=pwd))
 
     def readblocks(self, member, *, pwd=None):
         """
         Read the archive by yielding blocks of bytes.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
+        *Member* can refer to an :class:`AceMember` object, a member name or
+        an index into the archive member list.
+
         Reading members in a different order than they appear in a solid
         archive works but is very slow, because the decompressor needs to
         restart at the beginning of the solid archive to restore internal
@@ -3214,10 +3254,10 @@ class AceArchive:
         """
         Read a file from the archive.  Returns False if any corruption was
         found, True if the header and decompression was okay.
-        Raises EncryptedArchiveError if the archive member is encrypted but
-        no password was provided.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
+        Raises :class:`EncryptedArchiveError` if the archive member is
+        encrypted but no password was provided.
+        *Member* can refer to an :class:`AceMember` object, a member name or
+        an index into the archive member list.
         Testing members in a different order than they appear in a solid
         archive works but is very slow, because the decompressor needs to
         restart at the beginning of the solid archive to restore internal
@@ -3236,8 +3276,8 @@ class AceArchive:
         """
         Read all the files in the archive.  Returns the name of the first file
         with a failing header or content CRC, or None if all files were okay.
-        Raises EncryptedArchiveError if an archive member is encrypted but no
-        password was provided.
+        Raises :class:`EncryptedArchiveError` if an archive member is
+        encrypted but no password was provided.
         """
         for am in self.getmembers():
             if not self.test(am, pwd=pwd):
@@ -3246,7 +3286,8 @@ class AceArchive:
 
     def dumpheaders(self, file=sys.stdout):
         """
-        Dump all ACE file format headers to *file*.
+        Dump all ACE file format headers in this archive and all its volumes
+        to *file*.
         """
         for volume in self.__volumes:
             volume.dumpheaders()
@@ -3276,10 +3317,10 @@ class AceArchive:
     @property
     def advert(self):
         """
-        ACE archive level advert string.
-        Unregistered versions communicate that they are unregistered by
-        writing *UNREGISTERED VERSION* as the advert string of all archives
-        they create.
+        ACE archive advert string.
+        Unregistered versions of WinAce communicate that they are
+        unregistered by including an advert string of
+        ``*UNREGISTERED VERSION*`` in archives they create.
         """
         return self.__volumes[0].advert
 
