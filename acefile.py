@@ -824,7 +824,7 @@ class AceCRC32:
         """
         Initialize and add bytes in *buf* into checksum.
         """
-        self.crc32 = 0xFFFFFFFF
+        self.__state = 0xFFFFFFFF
         if len(buf) > 0:
             self += buf
 
@@ -833,10 +833,10 @@ class AceCRC32:
         Adding a buffer of bytes into the checksum, updating the rolling
         checksum from all previously added buffers.
         """
-        crc32 = self.crc32
+        crc32 = self.__state
         for c in buf:
             crc32 = self._crctab[(crc32 ^ c) & 0xFF] ^ (crc32 >> 8)
-        self.crc32 = crc32
+        self.__state = crc32
         return self
 
     def __eq__(self, other):
@@ -862,7 +862,7 @@ class AceCRC32:
         """
         The checksum.
         """
-        return self.crc32
+        return self.__state
 
 class AceCRC16(AceCRC32):
     """
@@ -888,7 +888,7 @@ class AceCRC16(AceCRC32):
         """
         The checksum.
         """
-        return self.crc32 & 0xFFFF
+        return super().sum & 0xFFFF
 
 def ace_crc32(buf):
     """
