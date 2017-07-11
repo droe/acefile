@@ -71,6 +71,7 @@ import os
 import re
 import struct
 import sys
+import zlib
 
 
 
@@ -785,31 +786,15 @@ class AceBlowfish:
 
 
 
-def classinit_crctab(cls):
-    """
-    Decorator that calculates a CRC table and stores it in the class.
-    This ensures that the table is calculated exactly once.
-    """
-    cls._crctab = []
-    for i in range(256):
-        hval = i
-        for j in range(8):
-            if hval & 1:
-                hval = (hval >> 1) ^ 0xEDB88320
-            else:
-                hval >>= 1
-        cls._crctab.append(hval)
-    return cls
-
-@classinit_crctab
 class AceCRC32:
     """
     Calculate an ACE CRC-32 checksum.
 
-    Even though ACE CRC-32 uses the standard CRC-32 polynomial, the algorithm
-    produces different results than standard CRC-32 as used by PKZIP and other
-    formats, because the resulting checksum is not inverted.  This flavour of
-    CRC-32 is listed as JAMCRC in http://reveng.sourceforge.net/crc-catalogue/
+    ACE CRC-32 uses the standard CRC-32 polynomial, bit ordering and
+    initialization vector, but does not invert the resulting checksum.
+    This implementation uses :meth:`zlib.crc32` with inverted state,
+    inverted initialization vector and inverted output in order to
+    construct ACE CRC-32 from standard CRC-32.
 
     >>> crc = AceCRC32()
     >>> crc += b"12345"
@@ -824,7 +809,7 @@ class AceCRC32:
         """
         Initialize and add bytes in *buf* into checksum.
         """
-        self.__state = 0xFFFFFFFF
+        self.__state = 0
         if len(buf) > 0:
             self += buf
 
@@ -833,10 +818,7 @@ class AceCRC32:
         Adding a buffer of bytes into the checksum, updating the rolling
         checksum from all previously added buffers.
         """
-        crc32 = self.__state
-        for c in buf:
-            crc32 = self._crctab[(crc32 ^ c) & 0xFF] ^ (crc32 >> 8)
-        self.__state = crc32
+        self.__state = zlib.crc32(buf, self.__state)
         return self
 
     def __eq__(self, other):
@@ -860,9 +842,9 @@ class AceCRC32:
     @property
     def sum(self):
         """
-        The checksum.
+        The final checksum.
         """
-        return self.__state
+        return self.__state ^ 0xFFFFFFFF
 
 class AceCRC16(AceCRC32):
     """
