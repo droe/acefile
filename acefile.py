@@ -158,7 +158,9 @@ def c_rot32(i, n):
     >>> c_rot32(0xF0, -4)
     15
     """
-    return ((i << n) | (i >> (32 - n)))
+    if n < 0:
+        n = 32 + n
+    return (((i << n) & 0xFFFFFFFF) | (i >> (32 - n)))
 
 def c_add32(a, b):
     """
