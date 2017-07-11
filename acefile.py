@@ -2996,7 +2996,6 @@ class AceArchive:
                         headers = []
                         segments = []
 
-            self.__next_iter_idx = 0
             self.__next_read_idx = 0
             self.__ace = ACE()
         except:
@@ -3018,18 +3017,7 @@ class AceArchive:
         Using :class:`AceArchive` as an iterater will iterate over
         :class:`AceMember` objects for all archive members.
         """
-        self.__next_iter_idx = 0
-        return self
-
-    def __next__(self):
-        """
-        Iterate to the next archive member's :class:`AceMember` object.
-        """
-        if self.__next_iter_idx >= len(self.__members):
-            raise StopIteration()
-        am = self.__members[self.__next_iter_idx]
-        self.__next_iter_idx += 1
-        return am
+        return self.__members.__iter__()
 
     def __repr__(self):
         return "<%s %r at %#x>" % (self.__class__.__name__,
