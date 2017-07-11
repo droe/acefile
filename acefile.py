@@ -90,6 +90,13 @@ def _dt_fromdos(dosdt):
     Timestamps with illegal values out of the allowed range are ignored and a
     datetime object representing 1980-01-01 00:00:00 is returned instead.
     https://msdn.microsoft.com/en-us/library/9kkf9tah.aspx
+
+    >>> _dt_fromdos(0x4a5c48fd)
+    datetime.datetime(2017, 2, 28, 9, 7, 58)
+    >>> _dt_fromdos(0)
+    datetime.datetime(1980, 1, 1, 0, 0)
+    >>> _dt_fromdos(-1)
+    datetime.datetime(1980, 1, 1, 0, 0)
     """
     try:
         return datetime.datetime(
@@ -108,6 +115,19 @@ def _dt_fromdos(dosdt):
 def c_div(q, d):
     """
     Arbitrary signed integer division with c behaviour.
+
+    >>> c_div(10, 3)
+    3
+    >>> c_div(-10, -3)
+    3
+    >>> c_div(-10, 3)
+    -3
+    >>> c_div(10, -3)
+    -3
+    >>> c_div(-11, 0)
+    Traceback (most recent call last):
+        ...
+    ZeroDivisionError:...
     """
     s = int(math.copysign(1, q) * math.copysign(1, d))
     return s * int(abs(q) / abs(d))
@@ -115,24 +135,48 @@ def c_div(q, d):
 def c_uchar(i):
     """
     Convert arbitrary integer to c unsigned char type range as if casted in c.
+
+    >>> c_uchar(0x12345678)
+    120
+    >>> c_uchar(-123)
+    133
+    >>> c_uchar(-1)
+    255
+    >>> c_uchar(255)
+    255
+    >>> c_uchar(256)
+    0
     """
     return i & 0xFF
 
 def c_rot32(i, n):
     """
     Rotate *i* left by *n* bits within the uint32 value range.
+
+    >>> c_rot32(0xF0000000, 4)
+    15
+    >>> c_rot32(0xF0, -4)
+    15
     """
     return ((i << n) | (i >> (32 - n)))
 
 def c_add32(a, b):
     """
     Add *a* and *b* within the uint32 value range.
+
+    >>> c_add32(0xFFFFFFFF, 1)
+    0
+    >>> c_add32(0xFFFFFFFF, 0xFFFFFFFF)
+    4294967294
     """
     return (a + b) & 0xFFFFFFFF
 
 def c_sum32(*args):
     """
     Add all elements of *args* within the uint32 value range.
+
+    >>> c_sum32(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF)
+    4294967293
     """
     return sum(args) & 0xFFFFFFFF
 
@@ -309,6 +353,14 @@ class EncryptedFileIO:
 class AceBlowfish:
     """
     Decryption engine for ACE Blowfish.
+
+    >>> bf = AceBlowfish(b'123456789')
+    >>> bf.blocksize
+    8
+    >>> bf.decrypt(b'\\xFF'*8)
+    b'\\xb7wF@5.er'
+    >>> bf.decrypt(b'\\xC7'*8)
+    b'eE\\x05\\xc4\\xa5\\x85)\\xbc'
     """
 
     SHA1_A = 0x67452301
@@ -601,6 +653,9 @@ class AceBlowfish:
         """
         Derive the decryption key from password bytes *pwd* using a single
         application of SHA-1 using non-standard padding.
+
+        >>> AceBlowfish._derive_key(None, b'123456789')
+        (3071200156, 3325860325, 4058316933, 1308772094, 896611998)
         """
         buf = pwd + bytes([0x80] + [0] * (64 - len(pwd) - 5))
         state = []
@@ -608,11 +663,11 @@ class AceBlowfish:
         state.append(len(pwd) << 3)
         for i in range(len(state), 80):
             state.append(state[i-16] ^ state[i-14] ^ state[i-8] ^ state[i-3])
-        a = self.SHA1_A
-        b = self.SHA1_B
-        c = self.SHA1_C
-        d = self.SHA1_D
-        e = self.SHA1_E
+        a = AceBlowfish.SHA1_A
+        b = AceBlowfish.SHA1_B
+        c = AceBlowfish.SHA1_C
+        d = AceBlowfish.SHA1_D
+        e = AceBlowfish.SHA1_E
         for i in range(20):
             a, b, c, d, e = \
                 c_sum32(c_rot32(a, 5), ((b&c)|(~b&d)), e, state[i],
@@ -629,11 +684,11 @@ class AceBlowfish:
             a, b, c, d, e = \
                 c_sum32(c_rot32(a, 5), (b^c^d), e, state[i],
                         0xca62c1d6), a, c_rot32(b, 30), c, d
-        a = c_add32(a, self.SHA1_A)
-        b = c_add32(b, self.SHA1_B)
-        c = c_add32(c, self.SHA1_C)
-        d = c_add32(d, self.SHA1_D)
-        e = c_add32(e, self.SHA1_E)
+        a = c_add32(a, AceBlowfish.SHA1_A)
+        b = c_add32(b, AceBlowfish.SHA1_B)
+        c = c_add32(c, AceBlowfish.SHA1_C)
+        d = c_add32(d, AceBlowfish.SHA1_D)
+        e = c_add32(e, AceBlowfish.SHA1_E)
         return (a, b, c, d, e)
 
     def _bf_init(self, key):
@@ -743,9 +798,18 @@ class AceCRC32:
     """
     Calculate an ACE CRC-32 checksum.
 
-    Even though ACE CRC-32 uses the standard CRC-32 polynomial in reversed
-    notation, the algorithm produces different results than standard CRC-32 as
-    used by PKZIP and other formats.
+    Even though ACE CRC-32 uses the standard CRC-32 polynomial, the algorithm
+    produces different results than standard CRC-32 as used by PKZIP and other
+    formats, because the resulting checksum is not inverted.  This flavour of
+    CRC-32 is listed as JAMCRC in http://reveng.sourceforge.net/crc-catalogue/
+
+    >>> crc = AceCRC32()
+    >>> crc += b"12345"
+    >>> crc += b"6789"
+    >>> crc.sum
+    873187033
+    >>> crc == 873187033
+    True
     """
 
     def __init__(self, buf=b''):
@@ -796,6 +860,14 @@ class AceCRC16(AceCRC32):
     """
     Calculate an ACE CRC-16 checksum, which is actually just the lower 16 bits
     of an ACE CRC-32.
+
+    >>> crc = AceCRC16()
+    >>> crc += b"12345"
+    >>> crc += b"6789"
+    >>> crc.sum
+    50905
+    >>> crc == 50905
+    True
     """
     def __str__(self):
         """
@@ -813,12 +885,18 @@ class AceCRC16(AceCRC32):
 def ace_crc32(buf):
     """
     Return the ACE CRC-32 checksum of the bytes in *buf*.
+
+    >>> ace_crc32(b"123456789")
+    873187033
     """
     return AceCRC32(buf).sum
 
 def ace_crc16(buf):
     """
     Return the ACE CRC-16 checksum of the bytes in *buf*.
+
+    >>> ace_crc16(b"123456789")
+    50905
     """
     return AceCRC16(buf).sum
 
@@ -3545,5 +3623,12 @@ def unace():
 
 
 if __name__ == '__main__':
+    if '--doctest' in sys.argv:
+        import doctest
+        failures, tests = doctest.testmod(optionflags=doctest.ELLIPSIS)
+        if failures > 0:
+            sys.exit(1)
+        else:
+            sys.exit(0)
     unace()
 
