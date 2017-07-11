@@ -2367,21 +2367,114 @@ class AceMember:
         self._idx           = idx
         self._file          = f
         self._headers       = filehdrs
-        self.raw_filename   = filehdrs[0].filename
-        self.filename       = self._sanitize_filename(filehdrs[0].filename)
-        self.size           = filehdrs[0].origsize
-        self.datetime       = _dt_fromdos(filehdrs[0].datetime)
-        self.attribs        = filehdrs[0].attribs
-        self.comment        = filehdrs[0].comment.decode('utf-8',
+        self.__attribs      = filehdrs[0].attribs
+        self.__comment      = filehdrs[0].comment.decode('utf-8',
                                                          errors='replace')
-        self.crc32          = filehdrs[-1].crc32
-        self.comptype       = filehdrs[0].comptype
-        self.compqual       = filehdrs[0].compqual
-        self.dicbits        = (filehdrs[0].params & 15) + 10
-        self.dicsize        = 1 << self.dicbits
-        self.packsize       = 0
+        self.__crc32        = filehdrs[-1].crc32
+        self.__comptype     = filehdrs[0].comptype
+        self.__compqual     = filehdrs[0].compqual
+        self.__datetime     = _dt_fromdos(filehdrs[0].datetime)
+        self.__dicsizebits  = (filehdrs[0].params & 15) + 10
+        self.__dicsize      = 1 << self.__dicsizebits
+        self.__raw_filename = filehdrs[0].filename
+        self.__filename     = self._sanitize_filename(filehdrs[0].filename)
+        self.__size         = filehdrs[0].origsize
+        self.__packsize     = 0
         for hdr in filehdrs:
-            self.packsize += hdr.packsize
+            self.__packsize += hdr.packsize
+
+    @property
+    def attribs(self):
+        """
+        DOS/Windows file attributes.
+        """
+        return self.__attribs
+
+    @property
+    def comment(self):
+        """
+        File-level comment.
+        """
+        return self.__comment
+
+    @property
+    def comptype(self):
+        """
+        Compression type used, as int.
+        """
+        return self.__comptype
+
+    @property
+    def compqual(self):
+        """
+        Compression quality used, as int.
+        """
+        return self.__compqual
+
+    @property
+    def crc32(self):
+        """
+        CRC-32 checksum of decompressed data as recorded in the archive.
+
+        .. note::
+
+            ACE uses an inverted CRC-32 that is not equal to CRC-32 as used
+            by many other archive formats.
+        """
+        return self.__crc32
+
+    @property
+    def datetime(self):
+        """
+        Timestamp as recorded in the archive.
+        """
+        return self.__datetime
+
+    @property
+    def dicsize(self):
+        """
+        LZ77 dictionary size required for extraction of this archive member
+        in literal symbols, ranging from 1K to 4M.
+        """
+        return 1 << self.__dicsizebits
+
+    @property
+    def dicsizebits(self):
+        """
+        LZ77 dictionary size bit length, i.e. the power of two of the
+        dictionary size required for extraction of this archive member.
+        """
+        return self.__dicsizebits
+
+    @property
+    def filename(self):
+        """
+        Sanitized filename, as str, safe for use with file operations on the
+        current platform.
+        """
+        return self.__filename
+
+    @property
+    def packsize(self):
+        """
+        Size before decompression (packed size).
+        """
+        return self.__packsize
+
+    @property
+    def raw_filename(self):
+        """
+        Raw, unsanitized filename, as bytes, not safe for use with file
+        operations and possibly using path syntax from other platforms.
+        """
+        return self.__raw_filename
+
+    @property
+    def size(self):
+        """
+        Size after decompression (original size).
+        """
+        return self.__size
 
     def is_dir(self):
         """
@@ -3396,7 +3489,7 @@ def unace():
                     else:
                         ratio = 100
                     print("%i%i%s %s%s %9i  %9i  %3i%%  %s  %s" % (
-                        am.comptype, am.compqual, hex(am.dicbits - 10)[2:],
+                        am.comptype, am.compqual, hex(am.dicsizebits - 10)[2:],
                         ft, en,
                         am.size,
                         am.packsize,

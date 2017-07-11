@@ -8,7 +8,7 @@
     confusion as ACE does not have separate modification and creation times.
 -   Change AceMember.orig_filename (str) to AceMember.raw_filename (bytes).
 -   Add AceArchive.is_locked() for testing if an archive is locked.
--   Replace AceMember.params with decoded AceMember.dicbits and
+-   Replace AceMember.params with decoded AceMember.dicsizebits and
     AceMember.dicsize, holding the decoded dictionary size as power of two
     and as effective number of literals, respectively.
 -   Show more metadata in CLI --verbose archive info and --list.
