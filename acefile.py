@@ -39,7 +39,7 @@ As pure-python implementation, it is significantly slower than
 native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,
-including the EXE, DIFF, PIC and SOUND modes of ACE 2.0, password protected
+including the EXE, DELTA, PIC and SOUND modes of ACE 2.0, password protected
 archives and multi-volume archives.  It is an implementation from scratch,
 based on the 1998 document titled "Technical information of the archiver ACE
 v1.2" by Marcel Lemke, using unace 2.5 and WinAce 2.69 by Marcel Lemke as
@@ -2123,12 +2123,12 @@ class Header:
                            'Win NT', 'Primos', 'Apple GS', 'ATARI', 'VAX VMS',
                            'AMIGA', 'NeXT', 'Linux')
 
-    COMP_STORE          = 0
+    COMP_STORED         = 0
     COMP_LZ77           = 1
     COMP_BLOCKED        = 2
-    COMP_STRINGS        = ('store', 'lz77', 'blocked')
+    COMP_STRINGS        = ('stored', 'lz77', 'blocked')
 
-    QUAL_STORE          = 0
+    QUAL_NONE           = 0
     QUAL_FASTEST        = 1
     QUAL_FAST           = 2
     QUAL_NORMAL         = 3
@@ -2460,47 +2460,54 @@ class AceMember:
     @property
     def attribs(self):
         """
-        DOS/Windows file attribute bit field.
+        DOS/Windows file attribute bit field, as :class:`int`.
         """
         return self.__attribs
 
     @property
     def comment(self):
         """
-        File-level comment.
+        File-level comment, as :class:`str`.
         """
         return self.__comment
 
     @property
     def comptype(self):
         """
-        Compression type used, as int.
+        Compression type used; one of
+        :data:`COMP_STORED`,
+        :data:`COMP_LZ77` or
+        :data:`COMP_BLOCKED`.
         """
         return self.__comptype
 
     @property
     def compqual(self):
         """
-        Compression quality used, as int.
+        Compression quality used; one of
+        :data:`QUAL_NONE`,
+        :data:`QUAL_FASTEST`,
+        :data:`QUAL_FAST`,
+        :data:`QUAL_NORMAL`,
+        :data:`QUAL_GOOD` or
+        :data:`QUAL_BEST`.
         """
         return self.__compqual
 
     @property
     def crc32(self):
         """
-        CRC-32 checksum of decompressed data as recorded in the archive.
-
-        .. note::
-
-            ACE uses an inverted CRC-32 that is not equal to CRC-32 as used
-            by other archive formats.
+        ACE CRC-32 checksum of decompressed data as recorded in the archive,
+        as :class:`int`.
+        ACE CRC-32 is the bitwise inverse of standard CRC-32.
         """
         return self.__crc32
 
     @property
     def datetime(self):
         """
-        Timestamp as recorded in the archive.
+        Timestamp as recorded in the archive, as :class:`datetime.datetime`
+        object.
         """
         return self.__datetime
 
@@ -2523,8 +2530,8 @@ class AceMember:
     @property
     def filename(self):
         """
-        Sanitized filename, as str, safe for use with file operations on the
-        current platform.
+        Sanitized filename, as :class:`str`, safe for use with file
+        operations on the current platform.
         """
         return self.__filename
 
@@ -2538,8 +2545,8 @@ class AceMember:
     @property
     def raw_filename(self):
         """
-        Raw, unsanitized filename, as bytes, not safe for use with file
-        operations and possibly using path syntax from other platforms.
+        Raw, unsanitized filename, as :class:`bytes`, not safe for use with
+        file operations and possibly using path syntax from other platforms.
         """
         return self.__raw_filename
 
@@ -2890,13 +2897,17 @@ class AceArchive:
     def _open(cls, file, mode='r', *, search=524288):
         """
         Open archive from *file*, which is either a filename or seekable
-        file-like object.  Only *mode* 'r' is implemented.
+        file-like object, and return an instance of :class:`AceArchive`
+        representing the opened archive that can function as a context
+        manager.
+        Only *mode* 'r' is implemented.
         If *search* is 0, the archive must start at position 0 in *file*,
         otherwise the first *search* bytes are searched for the magic bytes
         ``**ACE**`` that mark the ACE main header.
         For 1:1 compatibility with the official unace, 1024 sectors are
         searched by default, even though none of the SFX stubs that come with
         WinAce are that large.
+
         Multi-volume archives are represented by a single :class:`AceArchive`
         object to the caller, all operations transparently read into subsequent
         volumes as required.
@@ -3084,10 +3095,16 @@ class AceArchive:
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
         Returns the normalized path created (a directory or new file).
-        Extracting members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
+
+        .. note::
+
+            For **solid** archives, extracting members in a different order
+            than they appear in the archive works, but is potentially very
+            slow, because the decompressor needs to restart decompression at
+            the beginning of the solid archive to restore internal decompressor
+            state.
+            For **encrypted solid** archives, out of order access may fail when
+            archive members use different passwords.
         """
         am = self.getmember(member)
 
@@ -3133,15 +3150,20 @@ class AceArchive:
     def read(self, member, *, pwd=None):
         """
         Read the bytes of a member from the archive.
-        *Member* can refer to an AceMember object, a member name or an index
-        into the archive member list.
+        *Member* can refer to an :class:`AceMember` object, a member name or
+        an index into the archive member list.
 
-        Reading members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
+        .. note::
 
-        .. note:
+            For **solid** archives, reading members in a different order than
+            they appear in the archive works, but is potentially very slow,
+            because the decompressor needs to restart decompression at the
+            beginning of the solid archive to restore internal decompressor
+            state.
+            For **encrypted solid** archives, out of order access may fail when
+            archive members use different passwords.
+
+        .. note::
 
             Using :meth:`AceArchive.read` for large files is inefficient and
             may fail for very large files.
@@ -3156,10 +3178,15 @@ class AceArchive:
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
 
-        Reading members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
+        .. note::
+
+            For **solid** archives, reading members in a different order than
+            they appear in the archive works, but is potentially very slow,
+            because the decompressor needs to restart decompression at the
+            beginning of the solid archive to restore internal decompressor
+            state.
+            For **encrypted solid** archives, out of order access may fail when
+            archive members use different passwords.
         """
         am = self.getmember(member)
 
@@ -3192,7 +3219,7 @@ class AceArchive:
                 f = EncryptedFileIO(f, AceBlowfish(pwd))
 
             # Choose the matching decompressor based on the first header.
-            if am.comptype == Header.COMP_STORE:
+            if am.comptype == Header.COMP_STORED:
                 decompressor = self.__ace.decompress_stored
             elif am.comptype == Header.COMP_LZ77:
                 decompressor = self.__ace.decompress_lz77
@@ -3228,10 +3255,16 @@ class AceArchive:
         encrypted but no password was provided.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
-        Testing members in a different order than they appear in a solid
-        archive works but is very slow, because the decompressor needs to
-        restart at the beginning of the solid archive to restore internal
-        decompressor state.
+
+        .. note::
+
+            For **solid** archives, testing members in a different order than
+            they appear in the archive works, but is potentially very slow,
+            because the decompressor needs to restart decompression at the
+            beginning of the solid archive to restore internal decompressor
+            state.
+            For **encrypted solid** archives, out of order access may fail when
+            archive members use different passwords.
         """
         try:
             for buf in self.readblocks(member, pwd=pwd):
@@ -3265,6 +3298,8 @@ class AceArchive:
     def is_locked(self):
         """
         Return True iff archive is locked for further modifications.
+        Since this implementation does not support writing to archives,
+        the flag does not have any impact.
         """
         return self.__volumes[0].is_locked()
 
@@ -3280,7 +3315,10 @@ class AceArchive:
     def is_solid(self):
         """
         Return True iff archive is a solid archive, i.e. iff the archive
-        members are linked to each other by sharing the same dictionary.
+        members are linked to each other by sharing the same LZ77 dictionary.
+        Members of solid archives should always be read/tested/extracted in
+        the order they appear in the archive in order to avoid costly
+        decompression restarts from the beginning of the archive.
         """
         return self.__volumes[0].is_solid()
 
@@ -3319,14 +3357,14 @@ class AceArchive:
     def filename(self):
         """
         ACE archive filename.  This is not a property of the archive but rather
-        just the filename passed to the AceArchive constructor.
+        just the filename passed to :func:`acefile.open`.
         """
         return self.__volumes[0].filename
 
     @property
     def datetime(self):
         """
-        Archive modification timestamp as datetime object.
+        Archive timestamp as :class:`datetime.datetime` object.
         """
         return self.__volumes[0].datetime
 
@@ -3358,9 +3396,14 @@ class AceArchive:
 
 def is_acefile(file, *, search=524288):
     """
-    Return True if *file* refers to an ACE archive by filename or seekable
-    file-like object.  If *search* is > 0, search for the magic bytes in the
-    first *search* bytes of the file.
+    Return True iff *file* refers to an ACE archive by filename or seekable
+    file-like object.
+    If *search* is 0, the archive must start at position 0 in *file*,
+    otherwise the first *search* bytes are searched for the magic bytes
+    ``**ACE**`` that mark the ACE main header.
+    For 1:1 compatibility with the official unace, 1024 sectors are
+    searched by default, even though none of the SFX stubs that come with
+    WinAce are that large.
     """
     try:
         with open(file, search=search) as f:
@@ -3371,9 +3414,34 @@ def is_acefile(file, *, search=524288):
 
 
 
+#: The compression type constant for no compression.
+COMP_STORED  = Header.COMP_STORED
+#: The compression type constant for ACE 1.0 LZ77 mode.
+COMP_LZ77    = Header.COMP_LZ77
+#: The compression type constant for ACE 2.0 blocked mode.
+COMP_BLOCKED = Header.COMP_BLOCKED
+
+#: The compression quality constant for no compression.
+QUAL_NONE    = Header.QUAL_NONE
+#: The compression quality constant for fastest compression.
+QUAL_FASTEST = Header.QUAL_FASTEST
+#: The compression quality constant for fast compression.
+QUAL_FAST    = Header.QUAL_FAST
+#: The compression quality constant for normal compression.
+QUAL_NORMAL  = Header.QUAL_NORMAL
+#: The compression quality constant for good compression.
+QUAL_GOOD    = Header.QUAL_GOOD
+#: The compression quality constant for best compression.
+QUAL_BEST    = Header.QUAL_BEST
+
 builtin_open = open
 open = AceArchive._open
+
 __all__ = ['is_acefile', 'AceArchive']
+__all__.extend(filter(lambda name: name.startswith('COMP_'),
+                      sorted(list(globals()))))
+__all__.extend(filter(lambda name: name.startswith('QUAL_'),
+                      sorted(list(globals()))))
 __all__.extend(filter(lambda name: name.endswith('Error'),
                       sorted(list(globals()))))
 

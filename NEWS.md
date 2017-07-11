@@ -1,19 +1,27 @@
 
 ### acefile 0.5.3-dev
 
--   Remove the AceFile alias of the AceArchive class.
--   Remove AceArchive.open from public API.
--   Remove TruncatedArchiveError and use CorruptedArchiveError instead.
--   Rename UnknownMethodError to UnknownCompressionMethodError.
--   Change AceArchive.mtime and AceMember.mtime to .datetime in order to avoid
-    confusion as ACE does not have separate modification and creation times.
--   Change AceMember.orig_filename (str) to AceMember.raw_filename (bytes).
--   Add AceArchive.is_locked() for testing if an archive is locked.
--   Replace AceMember.params with decoded AceMember.dicsizebits and
-    AceMember.dicsize, holding the decoded dictionary size as power of two
-    and as effective number of literals, respectively.
--   Show more metadata in CLI --verbose archive info and --list.
+-   Library API overhaul:
+    -   Add AceArchive.is_locked() for testing if an archive is locked.
+    -   Add constants for compression types and quality.
+    -   Replace AceArchive.mtime and AceMember.mtime with .datetime in order
+        to avoid confusion as ACE does not have separate modification and
+        creation times.
+    -   Replace AceMember.orig_filename with AceMember.raw_filename and
+        change type from str to bytes.
+    -   Replace AceMember.params with decoded AceMember.dicsizebits and
+        AceMember.dicsize, holding the decoded dictionary size as power of
+        two and as effective number of literals, respectively.
+    -   Replace UnknownMethodError with UnknownCompressionMethodError.
+    -   Remove the AceFile alias of the AceArchive class.
+    -   Remove AceArchive.open().
+    -   Remove TruncatedArchiveError; CorruptedArchiveError is used instead.
 -   Ensure all open files are closed on exceptions during object creation.
+-   Roughly 10% performance increase by constructing non-standard ACE CRC-32
+    from python standard library zlib.crc32 instead of using a pure python
+    CRC implementation.
+-   Show more metadata in CLI --verbose archive info and --list.
+-   Generate API documentation.
 
 
 ### acefile 0.5.2 2017-07-03

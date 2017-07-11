@@ -1,5 +1,5 @@
-API Documentation
-=================
+|project| |version| API Documentation
+=====================================
 
 .. toctree::
    :maxdepth: 2
@@ -37,6 +37,36 @@ AceMember Class
 
 .. autoclass:: AceMember()
     :members:
+
+Constants
+---------
+
+.. autodata:: COMP_STORED
+    :annotation:
+
+.. autodata:: COMP_LZ77
+    :annotation:
+
+.. autodata:: COMP_BLOCKED
+    :annotation:
+
+.. autodata:: QUAL_NONE
+    :annotation:
+
+.. autodata:: QUAL_FASTEST
+    :annotation:
+
+.. autodata:: QUAL_FAST
+    :annotation:
+
+.. autodata:: QUAL_NORMAL
+    :annotation:
+
+.. autodata:: QUAL_GOOD
+    :annotation:
+
+.. autodata:: QUAL_BEST
+    :annotation:
 
 Exceptions
 ----------
