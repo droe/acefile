@@ -2598,9 +2598,13 @@ class AceVolume:
         self.__main_header = None
         self.__file_headers = []
         self.__all_headers = []
-        self._parse_headers(search)
-        if self.__main_header == None:
-            raise CorruptedArchiveError()
+        try:
+            self._parse_headers(search)
+            if self.__main_header == None:
+                raise CorruptedArchiveError()
+        except:
+            self.close()
+            raise
 
     def close(self):
         """
@@ -2913,63 +2917,72 @@ class AceArchive:
         else:
             file = (file,)
 
-        # load volumes
-        self.__volumes = [AceVolume(file[0], mode, search=search)]
-        if self.__volumes[0].is_multivolume():
-            for f in file[1:]:
-                self.__volumes.append(AceVolume(f, mode, search=0))
-            if len(self.__volumes) == 1 and isinstance(file[0], str):
-                vol = self.__volumes[0]
-                while True:
-                    vol = vol.try_load_next_volume(mode)
-                    if not vol:
-                        break
-                    self.__volumes.append(vol)
+        self.__volumes = []
+        try:
+            # load volumes
+            self.__tmp_file = file[0]
+            self.__volumes.append(AceVolume(file[0], mode, search=search))
+            self.__tmp_file = None
+            if self.__volumes[0].is_multivolume():
+                for f in file[1:]:
+                    self.__tmp_file = f
+                    self.__volumes.append(AceVolume(f, mode, search=0))
+                    self.__tmp_file = None
+                if len(self.__volumes) == 1 and isinstance(file[0], str):
+                    vol = self.__volumes[0]
+                    while True:
+                        vol = vol.try_load_next_volume(mode)
+                        if not vol:
+                            break
+                        self.__volumes.append(vol)
 
-        # check volume linkage
-        if len(self.__volumes) > 1:
-            last_volume = None
-            for vol in self.__volumes:
-                if not vol.is_multivolume():
-                    raise MultiVolumeArchiveError()
-                if last_volume != None and vol.volume != last_volume + 1:
-                    raise MultiVolumeArchiveError()
-                last_volume = vol.volume
+            # check volume linkage
+            if len(self.__volumes) > 1:
+                last_volume = None
+                for vol in self.__volumes:
+                    if not vol.is_multivolume():
+                        raise MultiVolumeArchiveError()
+                    if last_volume != None and vol.volume != last_volume + 1:
+                        raise MultiVolumeArchiveError()
+                    last_volume = vol.volume
 
-        # build list of archive members and their file segments across volumes
-        self.__members = []
-        headers = []
-        segments = []
-        for volume in self.__volumes:
-            for hdr in volume.get_file_headers():
-                if len(headers) == 0:
-                    if hdr.flag(Header.FLAG_CONTPREV):
-                        if len(self.__members) > 0:
-                            raise MultiVolumeArchiveError()
-                        # don't raise an error if this is the first file
-                        # in the first volume, to allow opening subsequent
-                        # volumes of multi-volume archives separately
-                        continue
-                else:
-                    if not hdr.flag(Header.FLAG_CONTPREV):
-                        raise MultiVolumeArchiveError()
-                    if hdr.filename != headers[-1].filename:
-                        raise MultiVolumeArchiveError()
-                headers.append(hdr)
-                segments.append(volume.file_segment_for(hdr))
-                if not hdr.flag(Header.FLAG_CONTNEXT):
-                    if len(segments) > 1:
-                        f = MultipleFilesIO(segments)
+            # build list of archive members and their file segments across volumes
+            self.__members = []
+            headers = []
+            segments = []
+            for volume in self.__volumes:
+                for hdr in volume.get_file_headers():
+                    if len(headers) == 0:
+                        if hdr.flag(Header.FLAG_CONTPREV):
+                            if len(self.__members) > 0:
+                                raise MultiVolumeArchiveError()
+                            # don't raise an error if this is the first file
+                            # in the first volume, to allow opening subsequent
+                            # volumes of multi-volume archives separately
+                            continue
                     else:
-                        f = segments[0]
-                    self.__members.append(AceMember(len(self.__members),
-                                                    headers, f))
-                    headers = []
-                    segments = []
+                        if not hdr.flag(Header.FLAG_CONTPREV):
+                            raise MultiVolumeArchiveError()
+                        if hdr.filename != headers[-1].filename:
+                            raise MultiVolumeArchiveError()
+                    headers.append(hdr)
+                    segments.append(volume.file_segment_for(hdr))
+                    if not hdr.flag(Header.FLAG_CONTNEXT):
+                        if len(segments) > 1:
+                            f = MultipleFilesIO(segments)
+                        else:
+                            f = segments[0]
+                        self.__members.append(AceMember(len(self.__members),
+                                                        headers, f))
+                        headers = []
+                        segments = []
 
-        self.__next_iter_idx = 0
-        self.__next_read_idx = 0
-        self.__ace = ACE()
+            self.__next_iter_idx = 0
+            self.__next_read_idx = 0
+            self.__ace = ACE()
+        except:
+            self.close()
+            raise
 
     def __enter__(self):
         """
@@ -3008,6 +3021,10 @@ class AceArchive:
         """
         Close the archive and free all resources.
         """
+        if self.__tmp_file != None:
+            if not isinstance(self.__tmp_file, str):
+                self.__tmp_file.close()
+            self.__tmp_file = None
         for volume in self.__volumes:
             volume.close()
 
@@ -3341,8 +3358,8 @@ def is_acefile(file, *, search=524288):
     first *search* bytes of the file.
     """
     try:
-        ace = open(file, search=search)
-        ace.close()
+        with open(file, search=search) as f:
+            pass
         return True
     except AceError:
         return False

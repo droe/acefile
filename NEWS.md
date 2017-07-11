@@ -12,6 +12,7 @@
     AceMember.dicsize, holding the decoded dictionary size as power of two
     and as effective number of literals, respectively.
 -   Show more metadata in CLI --verbose archive info and --list.
+-   Ensure all open files are closed on exceptions during object creation.
 
 
 ### acefile 0.5.2 2017-07-03
