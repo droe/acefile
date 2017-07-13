@@ -30,12 +30,14 @@ based on the 1998 document titled "Technical information of the archiver ACE
 v1.2" by Marcel Lemke, using unace 2.5 and WinAce 2.69 by Marcel Lemke as
 reference implementations.
 
-For more information, API documentation, source code and packages, see:
+For more information, API documentation, source code, packages and update
+notifications, refer to:
 
 - https://www.roe.ch/acefile
 - https://apidoc.roe.ch/acefile
 - https://github.com/droe/acefile
 - https://pypi.python.org/pypi/acefile
+- https://twitter.com/droethlisberger
 
 
 ## Requirements
