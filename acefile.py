@@ -1212,6 +1212,8 @@ class Huffman:
 class LZ77:
     """
     ACE 1.0 and ACE 2.0 LZ77 mode decompression engine.
+
+    Plain LZ77 compression over a Huffman-encoded symbol stream.
     """
 
     class SymbolStream:
@@ -1440,6 +1442,9 @@ class LZ77:
 class Sound:
     """
     ACE 2.0 SOUND mode decompression engine.
+
+    Multi-channel audio predictor over Huffman-encoding, resulting in a higher
+    compression ratio for uncompressed mono/stereo 8/16 bit sound data.
     """
 
     class Channel:
@@ -1667,6 +1672,9 @@ def classinit_pic(cls):
 class Pic:
     """
     ACE 2.0 PIC mode decompression engine.
+
+    Two-dimensional pixel colour predictor over Huffman-encoding, resulting
+    in a higher compression ratio for uncompressed picture data.
     """
 
     class Context:
@@ -1971,6 +1979,9 @@ class ACE:
 
             outchunk = []
             if mode.mode == ACE.MODE_LZ77_DELTA:
+                # Preprocessor that rearranges chunks of data and calculates
+                # differences between byte values, resulting in a higher
+                # LZ77 compression ratio for some inputs.
                 delta = []
                 while len(delta) < mode.delta_len:
                     chunk, nm = self.__lz77.read(bs,
@@ -2005,6 +2016,9 @@ class ACE:
                 outchunk.extend(chunk)
 
                 if mode.mode == ACE.MODE_LZ77_EXE:
+                    # Preprocessor that adjusts target addresses of
+                    # x86 JMP and CALL instructions in order to achieve a
+                    # higher LZ77 compression ratio for executables.
                     it = iter(range(len(outchunk)))
                     for i in it:
                         if i + 4 >= len(outchunk):
@@ -3117,6 +3131,10 @@ class AceArchive:
         Extract an archive member to *path* or the current working directory.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
+        Password *pwd* is used to decrypt the archive member if it is
+        encrypted.
+        Raises :class:`EncryptedArchiveError` if an archive member is
+        encrypted but no password was provided.
         Returns the normalized path created (a directory or new file).
 
         .. note::
@@ -3152,8 +3170,13 @@ class AceArchive:
         """
         Extract *members* or all members from archive to *path* or the current
         working directory.
-        Members can contain :class:`AceMember` objects, member names or
+        *Members* can contain :class:`AceMember` objects, member names or
         indexes into the archive member list.
+        Password *pwd* is used to decrypt encrypted archive members.
+        To extract archives that use multiple different passwords for different
+        archive members, you must use :meth:`AceArchive.extract` instead.
+        Raises :class:`EncryptedArchiveError` if an archive member is
+        encrypted but no password was provided.
         """
         if members == None or members == []:
             members = self.getmembers()
@@ -3175,6 +3198,10 @@ class AceArchive:
         Read the decompressed bytes of an archive member.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
+        Password *pwd* is used to decrypt the archive member if it is
+        encrypted.
+        Raises :class:`EncryptedArchiveError` if the archive member is
+        encrypted but no password was provided.
 
         .. note::
 
@@ -3200,6 +3227,10 @@ class AceArchive:
         Read the archive member by yielding blocks of decompressed bytes.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
+        Password *pwd* is used to decrypt the archive member if it is
+        encrypted.
+        Raises :class:`EncryptedArchiveError` if the archive member is
+        encrypted but no password was provided.
 
         .. note::
 
@@ -3274,10 +3305,12 @@ class AceArchive:
         """
         Test an archive member.  Returns False if any corruption was
         found, True if the header and decompression was okay.
-        Raises :class:`EncryptedArchiveError` if the archive member is
-        encrypted but no password was provided.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
+        Password *pwd* is used to decrypt the archive member if it is
+        encrypted.
+        Raises :class:`EncryptedArchiveError` if the archive member is
+        encrypted but no password was provided.
 
         .. note::
 
@@ -3303,6 +3336,9 @@ class AceArchive:
         Test all the members in the archive.  Returns the name of the first
         archive member with a failing header or content CRC, or None if all
         members were okay.
+        Password *pwd* is used to decrypt encrypted archive members.
+        To test archives that use multiple different passwords for different
+        archive members, use :meth:`AceArchive.test` instead.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
         """
