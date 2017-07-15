@@ -6,8 +6,8 @@
 
 .. automodule:: acefile
 
-Using the API
--------------
+API
+---
 
 Typical use of :mod:`acefile` has the following structure:
 
