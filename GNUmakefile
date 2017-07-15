@@ -7,11 +7,13 @@ VERSION:=$(shell $(PYTHON) -c 'import acefile; print(acefile.__version__)')
 
 SDIST=		dist/acefile-$(VERSION).tar.gz
 SDISTSIG=	$(SDIST:=.asc)
+APIDOC=		apidoc-acefile-$(VERSION).tar.bz2
 
 all: dist sign
 
 apidoc:
 	$(MAKE) -C apidoc all
+	tar -c -v -y -f $(APIDOC) -C apidoc/_build/html _static index.html
 
 dist: $(SDIST)
 
@@ -31,6 +33,7 @@ test:
 
 clean:
 	$(MAKE) -C apidoc clean
+	rm -rf $(APIDOC)
 	find . -depth -name '__pycache__' -type d -exec rm -r '{}' \;
 	rm -rf acefile.egg-info
 
