@@ -1,7 +1,7 @@
 
-### acefile 0.5.3-dev
+### acefile 0.6.0 2017-07-15
 
--   Library API overhaul:
+-   Library API overhaul towards a stable API:
     -   Add AceArchive.is_locked() for testing if an archive is locked.
     -   Add constants for compression types and quality.
     -   Replace AceArchive.mtime and AceMember.mtime with .datetime in order
