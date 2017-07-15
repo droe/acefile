@@ -1080,9 +1080,19 @@ class Huffman:
         """
         In-place quicksort of lists *keys* and *values* in descending order of
         *keys*.
+
+        >>> k, v = [6, 3, 4, 5, 1, 2, 0], list(range(7))
+        >>> Huffman._quicksort(k, v)
+        >>> (k, v)
+        ([6, 5, 4, 3, 2, 1, 0], [0, 3, 2, 1, 5, 4, 6])
         """
         def _quicksort_subrange(left, right):
             def _list_swap(_list, a, b):
+                """
+                >>> a = list(range(9))
+                >>> _list_swap(a, 3, 6)
+                [0, 1, 2, 6, 4, 5, 3, 7, 8, 9]
+                """
                 _list[a], _list[b] = _list[b], _list[a]
 
             new_left = left
