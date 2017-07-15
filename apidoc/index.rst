@@ -142,21 +142,25 @@ reading them into memory:
 ACE File Format
 ---------------
 
+Due to the lack of documentation on the ACE file format, a high-level overview
+over the ACE file format is given here, in the hope that it is useful.
+
 File Structure
 ~~~~~~~~~~~~~~
 
-ACE archives are a series of headers and associated data.  The first header is
-called ``MAIN`` header; it contains the magic bytes ``**ACE**`` at offset +7
-and describes the archive volume.  Subsequent headers are either ``FILE`` or
-``RECOVERY`` headers.  ``FILE`` headers describe archive members and preceed
-the compressed data bytes, while ``RECOVERY`` headers contain error correction
-data.  Originally, in ACE 1.0, all headers used 32 bit length fields.  With ACE
-2.0, alternative 64 bit versions of these headers were introduced to support
-files larger than 2 GB.
+ACE archives are a series of headers and optional associated data.  The first
+header is called ``MAIN`` header; it contains the magic bytes ``**ACE**`` at
+offset +7 and describes the archive volume.  Subsequent headers are either
+``FILE`` or ``RECOVERY`` headers.  ``FILE`` headers describe archive members
+and preceed the compressed data bytes, while ``RECOVERY`` headers contain error
+correction data.  Originally, in ACE 1.0, all headers used 32 bit length
+fields.  With ACE 2.0, alternative 64 bit versions of these headers were
+introduced to support files larger than 2 GB.
 
 In multi-volume archives, each volume begins with a ``MAIN`` header that
 carries a volume number.  When archive members span multiple volumes, each
-segment has it's own ``FILE`` header.
+segment has it's own ``FILE`` header.  The first volume has the filename
+extension ``*.ACE``, subsequent archive volumes use ``*.C00`` to ``*.C99``.
 
 Archives can have a main comment and each archive member can have a file
 comment.  Additionally, archives can have an advert string, which is used by
@@ -164,26 +168,26 @@ unregistered versions of the ACE compressor to signal that the archive was
 created using an unregistered version by setting it to ``*UNREGISTERED
 VERSION*``.
 
-
 Integrity Checks
 ~~~~~~~~~~~~~~~~
 
 Each header contains a 16 bit checksum over the header bytes.  Each archive
 member has a 32 bit checksum over the decompressed bytes.  ACE uses an bitwise
-inverted CRC-32 checksum as the 32 bit checksum, and a truncated version of
-that for the 16 bit checksum.
-
+inverted CRC-32 with polynomial ``0x04C11DB7`` as the 32 bit checksum, and a
+truncated version of that for the 16 bit checksum.
 
 Compression Methods
 ~~~~~~~~~~~~~~~~~~~
 
-Archive members are compressed using one of the following methods:
+Archive members are compressed using one of the following methods, as indicated
+in their ``FILE`` header:
 
 **stored**
     Data is stored as-is without any compression applied.
 
 **LZ77**
-    ACE 1.0 plain LZ77 compression over a Huffman-encoded symbol stream.
+    ACE 1.0 plain LZ77 compression over a Huffman-encoded symbol stream, with
+    configurable dictionary size of 1K..4M literals.
 
 **blocked**
     ACE 2.0 blocked mode compresses data in separate blocks, each block using
@@ -191,7 +195,8 @@ Archive members are compressed using one of the following methods:
     techniques.
 
     **LZ77**
-        Plain LZ77 over a Huffman-encoded symbol stream.
+        Plain LZ77 over a Huffman-encoded symbol stream, with configurable
+        dictionary size of 1K..4M literals.
 
     **EXE**
         LZ77 over Huffman with a preprocessor that adjusts target addresses of
@@ -212,16 +217,25 @@ Archive members are compressed using one of the following methods:
         Two-dimensional pixel colour predictor over Huffman-encoding, resulting
         in a higher compression ratio for uncompressed picture data.
 
-Comments are compressed using LZP over a Huffman-encoded symbol stream.  Advert
-strings and other header information are uncompressed.
+Solid archives use a single dictionary for the whole archive, while non-solid
+archives use a separate dictionary per archive member.  The compression quality
+parameter ranging from 0 (none) to 5 (best) influences the amount of CPU cycles
+the compressor spends to find an optimal compression; it has no influence on
+decompression.
 
+Comments are compressed using LZP over a Huffman-encoded symbol stream.  Advert
+strings and other header information is uncompressed.
 
 Encryption
 ~~~~~~~~~~
 
 Optional encryption is applied to the compressed data stream after compression.
 The user-supplied password of up to 50 characters is transformed into a 160 bit
-Blowfish encryption key using a single application of SHA-1, albeit using
-non-standard block padding.  Blowfish is applied in CBC mode using a constant
-zero IV to each archive member separately.
+Blowfish encryption key using a single application of SHA-1, using non-standard
+block padding.  Blowfish is applied in CBC mode using a constant zero IV to
+each archive member separately.  Each archive member can have a different
+password, but in practice most encrypted archives use a single password for all
+members.  There is no password verifier in the file format; the only way to
+verify a password is to decrypt and decompress the archive member and check the
+CRC.
 
