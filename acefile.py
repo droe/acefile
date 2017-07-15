@@ -3169,7 +3169,7 @@ class AceArchive:
 
     def read(self, member, *, pwd=None):
         """
-        Read the bytes of a member from the archive.
+        Read the decompressed bytes of an archive member.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
 
@@ -3194,7 +3194,7 @@ class AceArchive:
 
     def readblocks(self, member, *, pwd=None):
         """
-        Read the archive by yielding blocks of bytes.
+        Read the archive member by yielding blocks of decompressed bytes.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
 
@@ -3269,7 +3269,7 @@ class AceArchive:
 
     def test(self, member, *, pwd=None):
         """
-        Read a file from the archive.  Returns False if any corruption was
+        Test an archive member.  Returns False if any corruption was
         found, True if the header and decompression was okay.
         Raises :class:`EncryptedArchiveError` if the archive member is
         encrypted but no password was provided.
@@ -3297,8 +3297,9 @@ class AceArchive:
 
     def testall(self, *, pwd=None):
         """
-        Read all the files in the archive.  Returns the name of the first file
-        with a failing header or content CRC, or None if all files were okay.
+        Test all the members in the archive.  Returns the name of the first
+        archive member with a failing header or content CRC, or None if all
+        members were okay.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
         """
