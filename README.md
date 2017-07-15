@@ -25,10 +25,10 @@ native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,
 including the EXE, DELTA, PIC and SOUND modes of ACE 2.0, password protected
-archives and multi-volume archives.  It is an implementation from scratch,
-based on the 1998 document titled "Technical information of the archiver ACE
-v1.2" by Marcel Lemke, using unace 2.5 and WinAce 2.69 by Marcel Lemke as
-reference implementations.
+archives and multi-volume archives.  It does not support writing to archives.
+It is an implementation from scratch, based on the 1998 document titled
+"Technical information of the archiver ACE v1.2" by Marcel Lemke, using
+unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 
 For more information, API documentation, source code, packages and update
 notifications, refer to:

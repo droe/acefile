@@ -40,10 +40,10 @@ native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,
 including the EXE, DELTA, PIC and SOUND modes of ACE 2.0, password protected
-archives and multi-volume archives.  It is an implementation from scratch,
-based on the 1998 document titled "Technical information of the archiver ACE
-v1.2" by Marcel Lemke, using unace 2.5 and WinAce 2.69 by Marcel Lemke as
-reference implementations.
+archives and multi-volume archives.  It does not support writing to archives.
+It is an implementation from scratch, based on the 1998 document titled
+"Technical information of the archiver ACE v1.2" by Marcel Lemke, using
+unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 
 For more information, API documentation, source code, packages and update
 notifications, refer to:
@@ -2340,7 +2340,7 @@ class FileHeader(Header):
 
 class AceError(Exception):
     """
-    Base class for all acefile exceptions.
+    Base class for all :mod:`acefile` exceptions.
     """
     pass
 
@@ -2364,8 +2364,8 @@ class MultiVolumeArchiveError(AceError):
 
 class CorruptedArchiveError(AceError):
     """
-    Archive is corrupted.  Either a CRC check failed, an invalid value was
-    read from the archive or the archive is truncated.
+    Archive is corrupted.  Either a header or data CRC check failed, an invalid
+    value was read from the archive or the archive is truncated.
     """
     pass
 
@@ -2382,15 +2382,18 @@ class EncryptedArchiveError(AceError):
         Due to the lack of a password verifier in the ACE file format, there is
         no straightforward way to distinguish a wrong password from a corrupted
         archive.  If the CRC check of an encrypted archive member fails or an
-        :class:`CorruptedArchiveError` is encountered, it is assumed that the
-        password was wrong and :class:`EncryptedArchiveError` is raised.
+        :class:`CorruptedArchiveError` is encountered during decompression, it
+        is assumed that the password was wrong and as a consequence,
+        :class:`EncryptedArchiveError` is raised.
     """
     pass
 
 class UnknownCompressionMethodError(AceError):
     """
     Data was compressed using an unknown compression method and therefore
-    cannot be decompressed using this implementation.
+    cannot be decompressed using this implementation.  This should not happen
+    for ACE 1.0 or ACE 2.0 archives since this implementation implements all
+    existing compression methods.
     """
     pass
 
@@ -2461,20 +2464,20 @@ class AceMember:
 
     def is_dir(self):
         """
-        True iff :class:`AceMember` object describes a directory.
+        True iff :class:`AceMember` instance describes a directory.
         """
         return self.attribs & Header.ATTR_DIRECTORY != 0
 
     def is_enc(self):
         """
-        True iff :class:`AceMember` object describes an encrypted archive
+        True iff :class:`AceMember` instance describes an encrypted archive
         member.
         """
         return self._headers[0].flag(Header.FLAG_PASSWORD)
 
     def is_reg(self):
         """
-        True iff :class:`AceMember` object describes a regular file.
+        True iff :class:`AceMember` instance describes a regular file.
         """
         return not self.is_dir()
 
@@ -2528,7 +2531,7 @@ class AceMember:
     def datetime(self):
         """
         Timestamp as recorded in the archive, as :class:`datetime.datetime`
-        object.
+        instance.
         """
         return self.__datetime
 
@@ -2621,7 +2624,7 @@ class AceVolume:
 
     def dumpheaders(self, file=sys.stdout):
         """
-        Dump ACE headers for this archive volume to *file*.
+        Dump ACE headers in this archive volume to *file*.
         """
         print("""volume
     filename    %s
@@ -2637,8 +2640,8 @@ class AceVolume:
 
     def file_segment_for(self, fhdr):
         """
-        Returns a FileSegmentIO object for the file header *fhdr* belonging to
-        this volume.
+        Returns a :class:`FileSegmentIO` object for the file header *fhdr*
+        belonging to this volume.
         """
         assert fhdr in self.__file_headers
         return FileSegmentIO(self.__file, fhdr.dataoffset, fhdr.packsize)
@@ -2646,11 +2649,11 @@ class AceVolume:
     def _next_filename(self):
         """
         Derive the filename of the next volume after this one.
-        If the filename ends in ".[cC]XX", XX is incremented by 1.
+        If the filename ends in ``.[cC]XX``, XX is incremented by 1.
         Otherwise self is assumed to be the first in the series and
-        ".[cC]00" is used as extension.
+        ``.[cC]00`` is used as extension.
         Returns the derived filename in two variants, upper and lower case,
-        to allow for finding the file on case-sensitive filesystems.
+        to allow for finding the file on fully case-sensitive filesystems.
         """
         base, ext = os.path.splitext(self.__filename)
         ext = ext.lower()
@@ -2667,7 +2670,7 @@ class AceVolume:
     def try_load_next_volume(self, mode):
         """
         Open the next volume following this one in a multi-volume archive
-        and return the instantiated AceVolume object.
+        and return the instantiated :class:`AceVolume` object.
         """
         for nextname in self._next_filename():
             try:
@@ -2908,7 +2911,7 @@ class AceArchive:
         ``**ACE**`` that mark the ACE main header.
         For 1:1 compatibility with the official unace, 1024 sectors are
         searched by default, even though none of the SFX stubs that come with
-        WinAce are that large.
+        ACE compressors are that large.
 
         Multi-volume archives are represented by a single :class:`AceArchive`
         object to the caller, all operations transparently read into subsequent
@@ -3082,12 +3085,17 @@ class AceArchive:
         Return a list of :class:`AceMember` objects for the members of the
         archive.
         The objects are in the same order as they are in the archive.
+        For simply iterating over the members of an archive, it is more concise
+        and functionally equivalent to directly iterate over the
+        :class:`AceArchive` instance instead of over the list returned by
+        :meth:`AceArchive.getmembers`.
         """
         return self.__members
 
     def getnames(self):
         """
-        Return a list of the names of all the members in the archive.
+        Return a list of the (file)names of all the members in the archive
+        in the order they are in the archive.
         """
         return [am.filename for am in self.getmembers()]
 
@@ -3301,7 +3309,8 @@ class AceArchive:
         """
         Return True iff archive is locked for further modifications.
         Since this implementation does not support writing to archives,
-        the flag does not have any impact.
+        presence or absence of the flag in an archive does not change any
+        behaviour of :mod:`acefile`.
         """
         return self.__volumes[0].is_locked()
 
@@ -3328,7 +3337,7 @@ class AceArchive:
     def advert(self):
         """
         ACE archive advert string.
-        Unregistered versions of WinAce communicate that they are
+        Unregistered versions of ACE compressors communicate that they are
         unregistered by including an advert string of
         ``*UNREGISTERED VERSION*`` in archives they create.
         """
@@ -3344,14 +3353,19 @@ class AceArchive:
     @property
     def cversion(self):
         """
-        ACE creator version, version of ACE format used to create the archive.
+        ACE creator version.  This is equal to the major version of the ACE
+        compressor used to create the archive, which equals the highest
+        version of the ACE format supported by the ACE compressor which
+        produced the archive.
         """
         return self.__volumes[0].cversion
 
     @property
     def eversion(self):
         """
-        ACE extractor version, version of ACE format handler needed to extract.
+        ACE extractor version.  This is the version of the ACE decompressor
+        required to extract, which equals the version of the ACE format this
+        archive is compliant with.
         """
         return self.__volumes[0].eversion
 
@@ -3405,7 +3419,7 @@ def is_acefile(file, *, search=524288):
     ``**ACE**`` that mark the ACE main header.
     For 1:1 compatibility with the official unace, 1024 sectors are
     searched by default, even though none of the SFX stubs that come with
-    WinAce are that large.
+    ACE compressors are that large.
     """
     try:
         with open(file, search=search) as f:
