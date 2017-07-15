@@ -663,11 +663,14 @@ class AceBlowfish:
     def _derive_key(self, pwd):
         """
         Derive the decryption key from password bytes *pwd* using a single
-        application of SHA-1 using non-standard padding.
+        application of SHA-1 using non-standard padding.  The password is
+        truncated to a maximum of 50 bytes before key derivation.
 
         >>> AceBlowfish._derive_key(None, b'123456789')
         (3071200156, 3325860325, 4058316933, 1308772094, 896611998)
         """
+        if len(pwd) > 50:
+            pwd = pwd[:50]
         buf = pwd + bytes([0x80] + [0] * (64 - len(pwd) - 5))
         state = []
         state.extend(struct.unpack('<15L', buf))
