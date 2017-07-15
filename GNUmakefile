@@ -33,7 +33,7 @@ test:
 
 clean:
 	$(MAKE) -C apidoc clean
-	rm -rf $(APIDOC)
+	rm -rf apidoc-acefile-*.tar.bz2
 	find . -depth -name '__pycache__' -type d -exec rm -r '{}' \;
 	rm -rf acefile.egg-info
 
