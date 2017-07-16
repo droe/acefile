@@ -1082,12 +1082,14 @@ class Huffman:
     def _quicksort(keys, values):
         """
         In-place quicksort of lists *keys* and *values* in descending order of
-        *keys*.
+        *keys*.  Python uses a stable sorting algorithm, while the
+        reconstruction of the correct Huffman trees depends on the sorting
+        being unstable in exactly the way of this quicksort implementation.
 
-        >>> k, v = [6, 3, 4, 5, 1, 2, 0], list(range(7))
+        >>> k, v = [1, 0, 0, 1, 2, 0, 0], list(range(7))
         >>> Huffman._quicksort(k, v)
         >>> (k, v)
-        ([6, 5, 4, 3, 2, 1, 0], [0, 3, 2, 1, 5, 4, 6])
+        ([2, 1, 1, 0, 0, 0, 0], [4, 0, 3, 5, 6, 2, 1])
         """
         def _quicksort_subrange(left, right):
             def _list_swap(_list, a, b):
