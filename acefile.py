@@ -311,7 +311,7 @@ class MultipleFilesIO:
         assert newpos >= 0 and newpos <= self.__eof
         idx = 0
         relpos = newpos
-        while relpos >= self.__sizes[idx]:
+        while relpos > self.__sizes[idx]:
             relpos -= self.__sizes[idx]
             idx += 1
         self.__files[idx].seek(relpos)
