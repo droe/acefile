@@ -152,7 +152,7 @@ ACE archives are a series of headers and optional associated data.  The first
 header is called ``MAIN`` header; it contains the magic bytes ``**ACE**`` at
 offset +7 and describes the archive volume.  Subsequent headers are either
 ``FILE`` or ``RECOVERY`` headers.  ``FILE`` headers describe archive members
-and preceed the compressed data bytes, while ``RECOVERY`` headers contain error
+and precede the compressed data bytes, while ``RECOVERY`` headers contain error
 correction data.  Originally, in ACE 1.0, all headers used 32 bit length
 fields.  With ACE 2.0, alternative 64 bit versions of these headers were
 introduced to support files larger than 2 GB.
@@ -172,7 +172,7 @@ Integrity Checks
 ~~~~~~~~~~~~~~~~
 
 Each header contains a 16 bit checksum over the header bytes.  Each archive
-member has a 32 bit checksum over the decompressed bytes.  ACE uses an bitwise
+member has a 32 bit checksum over the decompressed bytes.  ACE uses a bitwise
 inverted CRC-32 with polynomial ``0x04C11DB7`` as the 32 bit checksum, and a
 truncated version of that for the 16 bit checksum.
 
