@@ -1,5 +1,9 @@
 ### acefile 0.6.2-dev
 
+-   Library API tweaking:
+    -   Remove AceArchive from __all__
+    -   Add open to __all__
+
 
 ### acefile 0.6.1 2017-07-16
 

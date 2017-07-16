@@ -66,6 +66,7 @@ __url__         = 'https://www.roe.ch/acefile'
 
 
 import array
+import builtins
 import datetime
 import io
 import math
@@ -2611,7 +2612,7 @@ class AceVolume:
         if mode != 'r':
             raise NotImplementedError()
         if isinstance(file, str):
-            self.__file = builtin_open(file, 'rb')
+            self.__file = builtins.open(file, 'rb')
             self.__filename = file
         else:
             if not file.seekable():
@@ -3154,7 +3155,7 @@ class AceArchive:
             basedir = os.path.dirname(fn)
             if basedir != '':
                 os.makedirs(basedir, exist_ok=True)
-            with builtin_open(fn, 'wb') as f:
+            with builtins.open(fn, 'wb') as f:
                 for buf in self.readblocks(am, pwd=pwd):
                     f.write(buf)
 
@@ -3492,10 +3493,9 @@ QUAL_GOOD    = Header.QUAL_GOOD
 #: The compression quality constant for best compression.
 QUAL_BEST    = Header.QUAL_BEST
 
-builtin_open = open
 open = AceArchive._open
 
-__all__ = ['is_acefile', 'AceArchive']
+__all__ = ['is_acefile', 'open']
 __all__.extend(filter(lambda name: name.startswith('COMP_'),
                       sorted(list(globals()))))
 __all__.extend(filter(lambda name: name.startswith('QUAL_'),
