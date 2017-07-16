@@ -1065,7 +1065,7 @@ class Huffman:
 
         def read_symbol(self, bs):
             """
-            Read a single Huffman symbol from bit stream *bs* by peeking the
+            Read a single Huffman symbol from BitStream *bs* by peeking the
             maximum code length in bits from the bit stream, looking up the
             symbol and its width, and finally skipping the actual width of
             the code for the symbol in the bit stream.
@@ -1230,7 +1230,7 @@ class LZ77:
 
         def _read_trees(self, bs):
             """
-            Read the Huffman trees as well as the blocksize from bit stream
+            Read the Huffman trees as well as the blocksize from BitStream
             *bs*; essentially this starts reading into a next block of symbols.
             """
             self.__main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH,
@@ -1241,7 +1241,7 @@ class LZ77:
 
         def read_main_symbol(self, bs):
             """
-            Read a main symbol from bit stream *bs*.
+            Read a main symbol from BitStream *bs*.
             """
             if self.__syms_to_read == 0:
                 self._read_trees(bs)
@@ -1250,7 +1250,7 @@ class LZ77:
 
         def read_len_symbol(self, bs):
             """
-            Read a length symbol from bit stream *bs*.
+            Read a length symbol from BitStream *bs*.
             """
             return self.__len_tree.read_symbol(bs)
 
@@ -1417,7 +1417,7 @@ class Sound:
 
         def _read_trees(self, bs):
             """
-            Read the Huffman trees as well as the blocksize from bit stream
+            Read the Huffman trees as well as the blocksize from BitStream
             *bs*; essentially this starts reading into a next block of symbols.
             """
             for i in range(len(self.__trees)):
@@ -1427,7 +1427,8 @@ class Sound:
 
         def read_symbol(self, bs, model):
             """
-            Read a main symbol from bit stream *bs*.
+            Read a symbol from BitStream *bs* using the Huffman tree for model
+            *model*.
             """
             if self.__syms_to_read == 0:
                 self._read_trees(bs)
@@ -1472,7 +1473,7 @@ class Sound:
 
         def _get_symbol(self, bs):
             """
-            Get next symbol from bit stream *bs*.
+            Get next symbol from BitStream *bs*.
             """
             model = self.__get_state << 1
             if model == 0:
@@ -1482,7 +1483,7 @@ class Sound:
 
         def get(self, bs):
             """
-            Get next sample, reading from bit stream *bs* if necessary.
+            Get next sample, reading from BitStream *bs* if necessary.
             """
             if self.__get_state != 2:
                 self.__get_code = self._get_symbol(bs)
@@ -1608,15 +1609,17 @@ class Sound:
         """
         assert want_size > 0
         chunk = []
+        next_mode = None
         for i in range(want_size & 0xFFFFFFFC):
             channel = Sound.USECHANNELS[self.__mode][i % 4]
             value = self.__channels[channel].get(bs)
             if isinstance(value, AceMode):
-                return (bytes(chunk), value)
+                next_mode = value
+                break
             sample = c_uchar(value + self.__channels[channel].rar_predict())
             chunk.append(sample)
             self.__channels[channel].rar_adjust(sample)
-        return (bytes(chunk), None)
+        return (bytes(chunk), next_mode)
 
 
 
@@ -1766,7 +1769,7 @@ class Pic:
 
         for i in range(len(context.error_counters)):
             context.error_counters[i] += \
-                    self._dif_bit_width[c_uchar(pixel_x - self._predict(i))]
+                    self._dif_bit_width[pixel_x - self._predict(i)]
             if i == 0 or context.error_counters[i] < \
                          context.error_counters[best_predictor]:
                 best_predictor = i
@@ -1805,7 +1808,6 @@ class Pic:
                         self.__lastdata[self.__planes + col - 1])
                 context = self.__models[use_model].contexts[use_context]
                 self.__pixel_x = self._get_pixel_x(bs, context)
-
                 data[col] = self._produce(use_predictor, data[col - 1])
 
         self.__lastdata = data
@@ -1819,8 +1821,8 @@ class Pic:
         Returns a tuple of the output bytes and the mode instruction.
         """
         assert want_size > 0
-        next_mode = None
         chunk = []
+        next_mode = None
         if len(self.__leftover) > 0:
             chunk.extend(self.__leftover)
             self.__leftover = []
