@@ -1,3 +1,6 @@
+### acefile 0.6.2-dev
+
+
 ### acefile 0.6.1 2017-07-16
 
 -   Truncate password to 50 bytes for 1:1 compatibility with official unace.
