@@ -367,7 +367,7 @@ class EncryptedFileIO:
 
     def read(self, n=None):
         if n == None:
-            n = self.__eof - self.__file.tell()
+            n = self.__eof - (self.__file.tell() - len(self.__buffer))
         if n < len(self.__buffer):
             rbuf = self.__buffer[:n]
             self.__buffer = self.__buffer[n:]
