@@ -1,6 +1,8 @@
 ### acefile 0.6.1-dev
 
 -   Truncate password to 50 bytes for 1:1 compatibility with official unace.
+-   40% performance increase of LZ77 decompression by reading LZ77 symbols as
+    needed instead of pre-loading whole blocks.
 
 
 ### acefile 0.6.0 2017-07-15

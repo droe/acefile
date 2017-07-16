@@ -1218,50 +1218,42 @@ class LZ77:
     Plain LZ77 compression over a Huffman-encoded symbol stream.
     """
 
-    class SymbolStream:
+    class SymbolReader:
         """
-        Stream of LZ77 symbols and their arguments.
+        Read blocks of Huffman-encoded LZ77 symbols.
+        Two Huffman trees are used, one for the LZ77 symbols (main codes) and
+        one for the length parameters (len codes).
         """
+
         def __init__(self):
-            self.__tuples = []
-            self.__current_tuple = None
+            self.__syms_to_read = 0
 
-        def append(self, symbol, arg1=None, arg2=None):
-            self.__tuples.append((symbol, arg1, arg2))
+        def _read_trees(self, bs):
+            """
+            Read the main and length Huffman trees as well as the blocksize
+            from bit stream *bs*; essentially this starts reading into a next
+            block of LZ77 symbols.
+            """
+            self.__main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH,
+                                                     LZ77.NUMMAINCODES)
+            self.__len_tree  = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH,
+                                                     LZ77.NUMLENCODES)
+            self.__syms_to_read = bs.read_bits(15)
 
-        def __len__(self):
-            return len(self.__tuples)
+        def read_main_symbol(self, bs):
+            """
+            Read a main symbol from bit stream *bs*.
+            """
+            if self.__syms_to_read == 0:
+                self._read_trees(bs)
+            self.__syms_to_read -= 1
+            return self.__main_tree.read_symbol(bs)
 
-        def __iter__(self):
-            return self
-
-        def __next__(self):
-            if len(self.__tuples) == 0:
-                raise StopIteration()
-            self.__current_tuple = self.__tuples.pop(0)
-            return self
-
-        @property
-        def symbol(self):
-            return self.__current_tuple[0]
-
-        @property
-        def len(self):
-            return self.__current_tuple[1]
-
-        @property
-        def dist(self):
-            return self.__current_tuple[2]
-
-        @property
-        def next_mode(self):
-            return self.__current_tuple[1]
-
-        @property
-        def next_symbol(self):
-            if len(self.__tuples) == 0:
-                return None
-            return self.__tuples[0][0]
+        def read_len_symbol(self, bs):
+            """
+            Read a length symbol from bit stream *bs*.
+            """
+            return self.__len_tree.read_symbol(bs)
 
 
     class DistHist:
@@ -1310,7 +1302,7 @@ class LZ77:
         Reinitialize the LZ77 decompression engine.
         Reset all data dependent state to initial values.
         """
-        self.__symbols = LZ77.SymbolStream()
+        self.__symreader = LZ77.SymbolReader()
         self.__disthist = LZ77.DistHist()
         self.__leftover = []
 
@@ -1337,30 +1329,6 @@ class LZ77:
         """
         self.__dictionary = self.__dictionary[-self.__dicsize:]
 
-    def _read_symbols(self, bs):
-        """
-        Read Huffman trees, block size and a full block of LZ77 symbols from
-        bit stream *bs* and append them to self.__symbols.
-        """
-        main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMMAINCODES)
-        len_tree  = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH, LZ77.NUMLENCODES)
-        blocksize = bs.read_bits(15)
-
-        for i in range(blocksize):
-            symbol = main_tree.read_symbol(bs)
-            if symbol <= 255:
-                self.__symbols.append(symbol)
-            elif symbol <= 259:
-                arg1 = len_tree.read_symbol(bs)
-                self.__symbols.append(symbol, arg1)
-            elif symbol < LZ77.TYPECODE:
-                arg2 = bs.read_knownwidth_uint(symbol - 260)
-                arg1 = len_tree.read_symbol(bs)
-                self.__symbols.append(symbol, arg1, arg2)
-            else:
-                #assert symbol == LZ77.TYPECODE
-                self.__symbols.append(symbol, AceMode.read_from(bs))
-
     def read(self, bs, want_size):
         """
         Read a block of LZ77 compressed data from BitStream *bs*.
@@ -1377,30 +1345,23 @@ class LZ77:
             self.__leftover = []
 
         next_mode = None
-        while   have_size < want_size or \
-                len(self.__symbols) == 0 or \
-                self.__symbols.next_symbol == LZ77.TYPECODE:
-            if len(self.__symbols) == 0:
-                if have_size == want_size:
-                    # don't read symbols when want_size is satisfied;
-                    # this will mean that we don't read the type change if it
-                    # directly follows the symbols
-                    # to fix this, ensure caller handles zero length chunk
-                    # by immediately switching modes in the DELTA reading loop
-                    break
-                self._read_symbols(bs)
-                continue
-
-            sym = next(self.__symbols)
-
-            if sym.symbol > 255:
-                if sym.symbol == LZ77.TYPECODE:
-                    next_mode = sym.next_mode
-                    break
-
-                copy_len = sym.len
-                if sym.symbol > 259:
-                    copy_dist = sym.dist
+        while have_size < want_size:
+            symbol = self.__symreader.read_main_symbol(bs)
+            if symbol <= 255:
+                self.__dictionary.append(symbol)
+                have_size += 1
+            elif symbol < LZ77.TYPECODE:
+                if symbol <= 259:
+                    copy_len = self.__symreader.read_len_symbol(bs)
+                    offset = symbol & 0x03
+                    copy_dist = self.__disthist.retrieve(offset)
+                    if offset > 1:
+                        copy_len += 3
+                    else:
+                        copy_len += 2
+                else:
+                    copy_dist = bs.read_knownwidth_uint(symbol - 260)
+                    copy_len = self.__symreader.read_len_symbol(bs)
                     self.__disthist.append(copy_dist)
                     if copy_dist <= LZ77.MAXDISTATLEN2:
                         copy_len += 2
@@ -1408,13 +1369,6 @@ class LZ77:
                         copy_len += 3
                     else:
                         copy_len += 4
-                else:
-                    offset = sym.symbol & 0x03
-                    copy_dist = self.__disthist.retrieve(offset)
-                    if offset > 1:
-                        copy_len += 3
-                    else:
-                        copy_len += 2
                 copy_dist += 1
                 source_pos = len(self.__dictionary) - copy_dist
                 if source_pos < 0:
@@ -1423,9 +1377,12 @@ class LZ77:
                 for i in range(source_pos, source_pos + copy_len):
                     self.__dictionary.append(self.__dictionary[i])
                     have_size += 1
+            elif symbol == LZ77.TYPECODE:
+                next_mode = AceMode.read_from(bs)
+                break
             else:
-                self.__dictionary.append(sym.symbol)
-                have_size += 1
+                raise CorruptedArchiveError()
+
         if have_size > want_size:
             diff = have_size - want_size
             self.__leftover = self.__dictionary[-diff:]
@@ -1993,6 +1950,10 @@ class ACE:
                         if next_mode:
                             raise CorruptedArchiveError()
                         next_mode = nm
+                        if len(delta) == 0:
+                            break
+                if len(delta) == 0 and next_mode != None:
+                    continue
 
                 for i in range(len(delta)):
                     delta[i] = c_uchar(delta[i] + last_delta)
