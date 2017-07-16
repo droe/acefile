@@ -1230,9 +1230,8 @@ class LZ77:
 
         def _read_trees(self, bs):
             """
-            Read the main and length Huffman trees as well as the blocksize
-            from bit stream *bs*; essentially this starts reading into a next
-            block of LZ77 symbols.
+            Read the Huffman trees as well as the blocksize from bit stream
+            *bs*; essentially this starts reading into a next block of symbols.
             """
             self.__main_tree = Huffman.read_tree(bs, LZ77.MAXCODEWIDTH,
                                                      LZ77.NUMMAINCODES)
@@ -1406,39 +1405,87 @@ class Sound:
     compression ratio for uncompressed mono/stereo 8/16 bit sound data.
     """
 
+    class SymbolReader:
+        """
+        Read blocks of Huffman-encoded SOUND symbols.
+        For each channel, three Huffman trees are used.
+        """
+
+        def __init__(self, num_models):
+            self.__trees = [None] * num_models
+            self.__syms_to_read = 0
+
+        def _read_trees(self, bs):
+            """
+            Read the Huffman trees as well as the blocksize from bit stream
+            *bs*; essentially this starts reading into a next block of symbols.
+            """
+            for i in range(len(self.__trees)):
+                self.__trees[i] = Huffman.read_tree(bs, Sound.MAXCODEWIDTH,
+                                                        Sound.NUMCODES)
+            self.__syms_to_read = bs.read_bits(15)
+
+        def read_symbol(self, bs, model):
+            """
+            Read a main symbol from bit stream *bs*.
+            """
+            if self.__syms_to_read == 0:
+                self._read_trees(bs)
+            self.__syms_to_read -= 1
+            return self.__trees[model].read_symbol(bs)
+
+    def classinit_channel(cls):
+        """
+        Decorator that calculates the static tables for the Channel class.
+        This ensures that the tables are calculated exactly once.
+        """
+        cls._quantizer = [0] * 256
+        for i in range(1, 129):
+            # [-i] is equivalent to [256 - i]
+            cls._quantizer[-i] = cls._quantizer[i] = i.bit_length()
+        return cls
+
+    @classinit_channel
     class Channel:
         """
         Decompression parameters and methods for a single audio channel.
         """
-        def __init__(self, sound, idx):
-            self.__sound = sound
-            self.__chanidx = idx
-            self.reinit()
-
-        def reinit(self):
+        def __init__(self, symreader, channel_idx):
+            """
+            Initialize a channel with index *channel_idx*, using symbol
+            reader *symreader* to fetch new symbols.
+            """
+            self.__symreader            = symreader
+            self.__model_base_idx       = 3 * channel_idx
             self.__pred_dif_cnt         = [0] * 2
             self.__last_pred_dif_cnt    = [0] * 2
             self.__rar_dif_cnt          = [0] * 4
             self.__rar_coeff            = [0] * 4
             self.__rar_dif              = [0] * 9
             self.__byte_count           = 0
-            self.__last_byte            = 0
+            self.__last_sample          = 0
             self.__last_delta           = 0
             self.__adapt_model_cnt      = 0
             self.__adapt_model_use      = 0
             self.__get_state            = 0
             self.__get_code             = 0
 
-        def model(self):
+        def _get_symbol(self, bs):
+            """
+            Get next symbol from bit stream *bs*.
+            """
             model = self.__get_state << 1
             if model == 0:
                 model += self.__adapt_model_use
-            model += 3 * self.__chanidx
-            return model
+            model += self.__model_base_idx
+            return self.__symreader.read_symbol(bs, model)
 
-        def _get(self, bs):
+        def get(self, bs):
+            """
+            Get next sample, reading from bit stream *bs* if necessary.
+            """
             if self.__get_state != 2:
-                self.__get_code = self.__sound._get_symbol(bs, self.model())
+                self.__get_code = self._get_symbol(bs)
                 if self.__get_code == Sound.TYPECODE:
                     return AceMode.read_from(bs)
 
@@ -1469,16 +1516,16 @@ class Sound:
             else:
                 return value >> 1
 
-        def _rar_predict(self):
+        def rar_predict(self):
             if self.__pred_dif_cnt[0] > self.__pred_dif_cnt[1]:
-                return self.__last_byte
+                return self.__last_sample
             else:
-                return self._get_predicted_char()
+                return self._get_predicted_sample()
 
-        def _rar_adjust(self, char):
+        def rar_adjust(self, sample):
             self.__byte_count += 1
-            pred_char = self._get_predicted_char()
-            pred_dif = (pred_char - char) << 3
+            pred_sample = self._get_predicted_sample()
+            pred_dif = (pred_sample - sample) << 3
             self.__rar_dif[0] += abs(pred_dif - self.__rar_dif_cnt[0])
             self.__rar_dif[1] += abs(pred_dif + self.__rar_dif_cnt[0])
             self.__rar_dif[2] += abs(pred_dif - self.__rar_dif_cnt[1])
@@ -1489,12 +1536,10 @@ class Sound:
             self.__rar_dif[7] += abs(pred_dif + self.__rar_dif_cnt[3])
             self.__rar_dif[8] += abs(pred_dif)
 
-            self.__pred_dif_cnt[0] += \
-                self.__sound.quantizer[c_uchar(pred_dif >> 3)]
-            self.__pred_dif_cnt[1] += \
-                self.__sound.quantizer[c_uchar(self.__last_byte - char)]
-            self.__last_delta = (char - self.__last_byte)
-            self.__last_byte = char
+            self.__last_delta = sample - self.__last_sample
+            self.__pred_dif_cnt[0] += self._quantizer[pred_dif >> 3]
+            self.__pred_dif_cnt[1] += self._quantizer[-self.__last_delta]
+            self.__last_sample = sample
 
             if self.__byte_count & 0x1F == 0:
                 min_dif = 0xFFFF
@@ -1521,8 +1566,8 @@ class Sound:
             self.__rar_dif_cnt[1] = self.__last_delta - self.__rar_dif_cnt[0]
             self.__rar_dif_cnt[0] = self.__last_delta
 
-        def _get_predicted_char(self):
-            return c_uchar((8 * self.__last_byte + \
+        def _get_predicted_sample(self):
+            return c_uchar((8 * self.__last_sample + \
                             self.__rar_coeff[0] * self.__rar_dif_cnt[0] + \
                             self.__rar_coeff[1] * self.__rar_dif_cnt[1] + \
                             self.__rar_coeff[2] * self.__rar_dif_cnt[2] + \
@@ -1541,35 +1586,19 @@ class Sound:
                            (1, 0, 2, 0))
 
     def __init__(self):
-        self.quantizer = [None] * 256
-        self.quantizer[0] = 0
-        for i in range(1, 129):
-            self.quantizer[256 - i] = self.quantizer[i] = i.bit_length()
-        self.__channels = [self.Channel(self, i) for i in range(Sound.MAXCHANNELS)]
+        self.__mode     = None
+        self.__channels = None
 
     def reinit(self, mode):
         """
         Reinitialize the SOUND decompression engine.
         Reset all data dependent state to initial values.
         """
-        for channel in self.__channels:
-            channel.reinit()
-        self.__mode           = mode - ACE.MODE_SOUND_8
-        num_models            = Sound.NUMCHANNELS[self.__mode] * 3
-        self.__huff_trees     = [None] * num_models
-        self.__blocksize      = 0
-
-    def _read_trees(self, bs):
-        for i in range(len(self.__huff_trees)):
-            self.__huff_trees[i] = \
-                    Huffman.read_tree(bs, Sound.MAXCODEWIDTH, Sound.NUMCODES)
-        self.__blocksize = bs.read_bits(15)
-
-    def _get_symbol(self, bs, model):
-        if self.__blocksize == 0:
-            self._read_trees(bs)
-        self.__blocksize -= 1
-        return self.__huff_trees[model].read_symbol(bs)
+        self.__mode     = mode - ACE.MODE_SOUND_8
+        num_channels    = Sound.NUMCHANNELS[self.__mode]
+        num_models      = num_channels * 3
+        sr              = Sound.SymbolReader(num_models)
+        self.__channels = [self.Channel(sr, i) for i in range(num_channels)]
 
     def read(self, bs, want_size):
         """
@@ -1582,12 +1611,12 @@ class Sound:
         chunk = []
         for i in range(want_size & 0xFFFFFFFC):
             channel = Sound.USECHANNELS[self.__mode][i % 4]
-            value = self.__channels[channel]._get(bs)
+            value = self.__channels[channel].get(bs)
             if isinstance(value, AceMode):
-                return (chunk, value)
-            sample = c_uchar(value + self.__channels[channel]._rar_predict())
+                return (bytes(chunk), value)
+            sample = c_uchar(value + self.__channels[channel].rar_predict())
             chunk.append(sample)
-            self.__channels[channel]._rar_adjust(sample)
+            self.__channels[channel].rar_adjust(sample)
         return (bytes(chunk), None)
 
 
