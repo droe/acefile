@@ -1955,10 +1955,10 @@ class ACE:
         while producedsize < filesize:
             if next_mode != None:
                 if mode.mode != next_mode.mode:
-                    if next_mode.mode in [ACE.MODE_SOUND_8,
+                    if next_mode.mode in (ACE.MODE_SOUND_8,
                                           ACE.MODE_SOUND_16,
                                           ACE.MODE_SOUND_32A,
-                                          ACE.MODE_SOUND_32B]:
+                                          ACE.MODE_SOUND_32B):
                         self.__sound.reinit(next_mode.mode)
                     elif next_mode.mode == ACE.MODE_PIC:
                         self.__pic.reinit(bs)
@@ -2000,7 +2000,7 @@ class ACE:
                     delta_plane_pos += 1
                 # end of ACE.MODE_LZ77_DELTA
 
-            elif mode.mode in [ACE.MODE_LZ77, ACE.MODE_LZ77_EXE]:
+            elif mode.mode in (ACE.MODE_LZ77, ACE.MODE_LZ77_EXE):
                 if len(exe_leftover) > 0:
                     outchunk.extend(exe_leftover)
                     exe_leftover = []
@@ -2059,8 +2059,8 @@ class ACE:
                     # end of ACE.MODE_LZ77_EXE
                 # end of ACE.MODE_LZ77 or ACE.MODE_LZ77_EXE
 
-            elif mode.mode in [ACE.MODE_SOUND_8,   ACE.MODE_SOUND_16,
-                               ACE.MODE_SOUND_32A, ACE.MODE_SOUND_32B]:
+            elif mode.mode in (ACE.MODE_SOUND_8,   ACE.MODE_SOUND_16,
+                               ACE.MODE_SOUND_32A, ACE.MODE_SOUND_32B):
                 outchunk, next_mode = self.__sound.read(bs,
                                                         filesize - producedsize)
                 self.__lz77.dic_copy(outchunk)
@@ -2794,7 +2794,7 @@ class AceVolume:
                 raise CorruptedArchiveError()
             self.__main_header = header
 
-        elif htype in [Header.TYPE_FILE32, Header.TYPE_FILE64]:
+        elif htype in (Header.TYPE_FILE32, Header.TYPE_FILE64):
             header = FileHeader(hcrc, hsize, htype, hflags)
             if not header.flag(Header.FLAG_ADDSIZE):
                 raise CorruptedArchiveError()
