@@ -227,12 +227,16 @@ class FileSegmentIO:
     """
     Seekable file-like object that wraps and reads from seekable file-like
     object and fakes EOF when a read would extend beyond a defined boundary.
+
+    >>> FileSegmentIO(io.BytesIO(b'0123456789'), 3, 4).read()
+    b'3456'
     """
     def __init__(self, f, base, size):
         assert f.seekable()
         self.__file = f
         self.__base = base
         self.__eof = base + size
+        self.__file.seek(self.__base, 0)
 
     def seekable(self):
         return True
@@ -275,6 +279,9 @@ class MultipleFilesIO:
     """
     Seekable file-like object that wraps and reads from multiple
     seekable lower-level file-like objects.
+
+    >>> MultipleFilesIO((io.BytesIO(b'01234'), io.BytesIO(b'56789'))).read()
+    b'0123456789'
     """
     def __init__(self, files):
         assert len(files) > 0
@@ -283,6 +290,7 @@ class MultipleFilesIO:
         for f in files:
             f.seek(0, 2)
             self.__sizes.append(f.tell())
+        self.__files[0].seek(0)
         self.__idx = 0
         self.__pos = 0
         self.__eof = sum(self.__sizes)
@@ -309,7 +317,9 @@ class MultipleFilesIO:
         self.__files[idx].seek(relpos)
         self.__idx = idx
 
-    def read(self, n):
+    def read(self, n=None):
+        if n == None:
+            n = self.__eof - self.__pos
         out = []
         have_size = 0
         while have_size < n:
@@ -322,6 +332,7 @@ class MultipleFilesIO:
                     self.__files[self.__idx].seek(0)
                 continue
             out.append(chunk)
+            self.__pos += len(chunk)
             have_size += len(chunk)
         return b''.join(out)
 
@@ -329,20 +340,34 @@ class MultipleFilesIO:
 
 class EncryptedFileIO:
     """
-    Non-seekable file-like object that reads from a lower-level file-like
-    object not assumed to be seekable, and transparently decrypts the data
-    stream using a decryption engine.  The decryption engine is assumed to
-    support a decrypt() method and a blocksize property.
+    Non-seekable file-like object that reads from a lower-level seekable
+    file-like object, and transparently decrypts the data stream using a
+    decryption engine.  The decryption engine is assumed to support a
+    decrypt() method and a blocksize property.  The underlying file-like
+    object is expected to contain a multiple of blocksize bytes, if not,
+    CorruptedArchiveError is raised.
+
+    >>> EncryptedFileIO(io.BytesIO(b'7'*16), AceBlowfish(b'123456789')).read()
+    b'\\t_\\xd0a}\\x1dh\\xdd>h\\xe7VJ*_\\xea'
+    >>> EncryptedFileIO(io.BytesIO(b'7'*17), AceBlowfish(b'123456789')).read()
+    Traceback (most recent call last):
+        ...
+    CorruptedArchiveError:...
     """
     def __init__(self, f, engine):
         self.__file = f
+        self.__file.seek(0, 2)
+        self.__eof = self.__file.tell()
+        self.__file.seek(0)
         self.__engine = engine
         self.__buffer = b''
 
     def seekable():
         return False
 
-    def read(self, n):
+    def read(self, n=None):
+        if n == None:
+            n = self.__eof - self.__file.tell()
         if n < len(self.__buffer):
             rbuf = self.__buffer[:n]
             self.__buffer = self.__buffer[n:]
@@ -901,8 +926,35 @@ def ace_crc16(buf):
 class BitStream:
     """
     Intel-endian 32bit-byte-swapped, MSB first bitstream, reading from an
-    underlying file-like object that does not need to be seekable.
+    underlying file-like object that does not need to be seekable, but is
+    expected to be a multiple of 4 in length.
+
+    >>> bs = BitStream(io.BytesIO(b'01234567'))
+    >>> bs.peek_bits(31)
+    429463704
+    >>> bs.read_bits(31)
+    429463704
+    >>> bs.skip_bits(3)
+    >>> bs.read_bits(5)
+    27
+    >>> bs.read_golomb_rice(3)
+    20
+    >>> bs.read_golomb_rice(2, True)
+    -2
+    >>> bs.read_knownwidth_uint(10)
+    618
+    >>> bs.read_bits(39)
+    223338299392
+    >>> bs.read_bits(1)
+    Traceback (most recent call last):
+        ...
+    BitStream.Depleted
+    >>> BitStream(io.BytesIO(b'012345678'))
+    Traceback (most recent call last):
+        ...
+    CorruptedArchiveError:...
     """
+
     class Depleted(Exception):
         """
         Raised when an attempt is made to read beyond the available data.
@@ -1668,13 +1720,20 @@ class Pic:
     """
 
     class Context:
+        """
+        A single PIC mode context.
+        """
         def __init__(self):
             self.used_counter = 0
             self.predictor_number = 0
             self.average_counter = 4
             self.error_counters = [0] * 4
 
+
     class Model:
+        """
+        A model comprising of NUMCTX contexts.
+        """
         NUMCTX  = 365
 
         def __init__(self):
