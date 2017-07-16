@@ -1578,7 +1578,6 @@ class Sound:
     TYPECODE            = 256 + RUNLENCODES
     NUMCODES            = 256 + RUNLENCODES + 1
     MAXCODEWIDTH        = 10
-    MAXCHANNELS         = 3
     NUMCHANNELS         = (1, 2, 3, 3)
     USECHANNELS         = ((0, 0, 0, 0),
                            (0, 1, 0, 1),
