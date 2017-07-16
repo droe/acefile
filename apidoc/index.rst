@@ -173,8 +173,8 @@ Integrity Checks
 
 Each header contains a 16 bit checksum over the header bytes.  Each archive
 member has a 32 bit checksum over the decompressed bytes.  ACE uses a bitwise
-inverted CRC-32 with polynomial ``0x04C11DB7`` as the 32 bit checksum, and a
-truncated version of that for the 16 bit checksum.
+inverted version of standard CRC-32 with polynomial ``0x04C11DB7`` as the
+32 bit checksum, and a truncated version of that for the 16 bit checksum.
 
 Compression Methods
 ~~~~~~~~~~~~~~~~~~~
