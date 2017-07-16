@@ -353,7 +353,7 @@ class EncryptedFileIO:
             read_bytes += blocksize - (want_bytes % blocksize)
         buf = self.__file.read(read_bytes)
         if len(buf) % blocksize:
-            raise CorruptedArchiveError()
+            raise CorruptedArchiveError("Truncated ciphertext block")
         buf = self.__engine.decrypt(buf)
         rbuf = self.__buffer + buf[:n]
         self.__buffer = buf[n:]
@@ -1323,8 +1323,7 @@ class LZ77:
     def _dic_truncate(self):
         """
         Truncate the internal dictionary to the minimum required dictionary
-        size in order to save memory.  This is actually a super slow operation
-        that adds considerably to runtime.
+        size in order to save memory.  This is an operation in O(n).
         """
         self.__dictionary = self.__dictionary[-self.__dicsize:]
 
@@ -1371,7 +1370,7 @@ class LZ77:
                 copy_dist += 1
                 source_pos = len(self.__dictionary) - copy_dist
                 if source_pos < 0:
-                    raise CorruptedArchiveError("copy from out of bounds")
+                    raise CorruptedArchiveError("LZ77 copy from out of bounds")
                 # copy needs to be byte-wise for overlapping src and dst
                 for i in range(source_pos, source_pos + copy_len):
                     self.__dictionary.append(self.__dictionary[i])
@@ -1380,7 +1379,7 @@ class LZ77:
                 next_mode = AceMode.read_from(bs)
                 break
             else:
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("LZ77 symbol > LZ77.TYPECODE")
 
         if have_size > want_size:
             diff = have_size - want_size
@@ -1908,7 +1907,7 @@ class ACE:
             wantsize = min(filesize - producedsize, FILE_BLOCKSIZE)
             outchunk = f.read(wantsize)
             if len(outchunk) == 0:
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("Truncated stored file")
             self.__lz77.dic_copy(outchunk)
             yield outchunk
             producedsize += len(outchunk)
@@ -1927,7 +1926,7 @@ class ACE:
         while producedsize < filesize:
             outchunk, next_mode = self.__lz77.read(bs, filesize)
             if next_mode:
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("LZ77.TYPECODE in ACE 1.0 LZ77")
             yield outchunk
             producedsize += len(outchunk)
 
@@ -1978,7 +1977,7 @@ class ACE:
                     delta.extend(chunk)
                     if nm != None:
                         if next_mode:
-                            raise CorruptedArchiveError()
+                            raise CorruptedArchiveError("DELTA clobbers mode")
                         next_mode = nm
                         if len(delta) == 0:
                             break
