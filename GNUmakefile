@@ -31,14 +31,18 @@ upload: $(SDISTSIG)
 test:
 	$(PYTHON) acefile.py --doctest
 
+build:
+	$(PYTHON) setup.py build_ext --inplace
+
 clean:
 	$(MAKE) -C apidoc clean
 	rm -rf apidoc-acefile-*.tar.bz2
 	find . -depth -name '__pycache__' -type d -exec rm -r '{}' \;
 	rm -rf acefile.egg-info
+	rm -rf build *.so
 
 todo:
 	egrep -r 'XXX|TODO|FIXME' *.py
 
-.PHONY: all apidoc dist sign upload test clean todo
+.PHONY: all apidoc dist sign upload test build clean todo
 

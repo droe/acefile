@@ -1,5 +1,7 @@
 __pycache__
 *.egg-info
-dist
+*.so
 apidoc/_build
 apidoc-*
+build
+dist

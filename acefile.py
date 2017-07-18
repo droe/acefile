@@ -76,6 +76,11 @@ import struct
 import sys
 import zlib
 
+try:
+    import acebitstream
+except:
+    acebitstream = None
+
 
 
 # arbitrarily chosen buffer size to use for buffered file operations that
@@ -943,23 +948,17 @@ class BitStream:
     -2
     >>> bs.read_knownwidth_uint(10)
     618
-    >>> bs.read_bits(39)
-    223338299392
-    >>> bs.read_bits(1)
+    >>> bs.read_bits(7)
+    52
+    >>> bs.read_bits(31); bs.read_bits(31)
     Traceback (most recent call last):
         ...
-    BitStream.Depleted
-    >>> BitStream(io.BytesIO(b'012345678'))
+    EOFError
+    >>> BitStream(io.BytesIO(b'012')).read_bits(31)
     Traceback (most recent call last):
         ...
-    CorruptedArchiveError:...
+    ValueError
     """
-
-    class Depleted(Exception):
-        """
-        Raised when an attempt is made to read beyond the available data.
-        """
-        pass
 
     @staticmethod
     def _getbits(value, start, length):
@@ -988,9 +987,9 @@ class BitStream:
         """
         tmpbuf = self.__file.read(FILE_BLOCKSIZE)
         if len(tmpbuf) == 0:
-            raise BitStream.Depleted()
+            raise EOFError()
         if len(tmpbuf) % 4 != 0:
-            raise CorruptedArchiveError("len(tmpbuf) % 4 != 0")
+            raise ValueError()
 
         newbuf = self.__buf[-1:]
         for i in range(0, len(tmpbuf), 4):
@@ -1069,6 +1068,16 @@ class BitStream:
             return bits
         bits -= 1
         return self.read_bits(bits) + (1 << bits)
+
+
+
+if acebitstream != None:
+    class BitStream_c(acebitstream.BitStream):
+        read_golomb_rice = BitStream.read_golomb_rice
+        read_knownwidth_uint = BitStream.read_knownwidth_uint
+
+    BitStream_c.__doc__ = BitStream.__doc__
+    BitStream = BitStream_c
 
 
 
@@ -3342,6 +3351,11 @@ class AceArchive:
                 for block in decompressor(f, am.size, am.dicsize):
                     crc += block
                     yield block
+            except ValueError:
+                if am.is_enc():
+                    raise EncryptedArchiveError()
+                else:
+                    raise CorruptedArchiveError()
             except CorruptedArchiveError:
                 if am.is_enc():
                     raise EncryptedArchiveError()
@@ -3349,7 +3363,7 @@ class AceArchive:
             if crc != am.crc32:
                 if am.is_enc():
                     raise EncryptedArchiveError()
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("CRC mismatch")
 
         self.__next_read_idx += 1
 
