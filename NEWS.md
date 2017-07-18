@@ -3,6 +3,8 @@
 -   Library API tweaking:
     -   Remove AceArchive from __all__
     -   Add open to __all__
+-   Add high-performance BitStream implementation as optional c extension,
+    resulting in over 50% speed increase for LZ77 archives.
 
 
 ### acefile 0.6.1 2017-07-16
