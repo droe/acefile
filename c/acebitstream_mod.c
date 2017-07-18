@@ -156,7 +156,7 @@ BitStream_skip_bits(BitStream *self, PyObject *args)
 	ret = acebitstream_skip_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
-	if (ret == 0xFFFFFFFF) {
+	if (ret == ACEBITSTREAM_EOF) {
 		PyErr_SetNone(PyExc_EOFError);
 		return NULL;
 	}
@@ -178,7 +178,7 @@ BitStream_read_bits(BitStream *self, PyObject *args)
 	ret = acebitstream_read_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
-	if (ret == 0xFFFFFFFF) {
+	if (ret == ACEBITSTREAM_EOF) {
 		PyErr_SetNone(PyExc_EOFError);
 		return NULL;
 	}

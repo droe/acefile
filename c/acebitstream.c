@@ -109,7 +109,7 @@ acebitstream_skip_bits(acebitstream_ctx_t *ctx, size_t n)
 	if (ctx->bitcount < n) {
 		acebitstream_refill_bits(ctx);
 		if (ctx->bitcount < n)
-			return 0xFFFFFFFF;
+			return ACEBITSTREAM_EOF;
 	}
 	ctx->bits <<= n;
 	ctx->bitcount -= n;
@@ -123,7 +123,7 @@ acebitstream_read_bits(acebitstream_ctx_t *ctx, size_t n)
 
 	value = acebitstream_peek_bits(ctx, n);
 	rv = acebitstream_skip_bits(ctx, n);
-	if (rv == 0xFFFFFFFF)
+	if (rv == ACEBITSTREAM_EOF)
 		return rv;
 	return value;
 }

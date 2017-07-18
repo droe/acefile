@@ -36,6 +36,8 @@
 #ifndef ACEBITSTREAM_H
 #define ACEBITSTREAM_H
 
+#define ACEBITSTREAM_EOF	0xFFFFFFFF
+
 typedef size_t (*acebitstream_read_cb_t)(void *, char *, size_t);
 
 typedef struct acebitstream_ctx {
