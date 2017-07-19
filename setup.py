@@ -58,12 +58,12 @@ try:
     run_setup(True)
 except:
     print('=' * 78)
-    print('WARNING: The optional C extension(s) coult not be compiled!')
+    print('WARNING: The optional C extension(s) could not be compiled!')
     print('Retrying setup without C extension(s) enabled.')
     print('=' * 78)
     run_setup(False)
     print('=' * 78)
-    print('WARNING: The optional C extension(s) coult not be compiled!')
+    print('WARNING: The optional C extension(s) could not be compiled!')
     print('The module will still be functional, but significantly slower.')
     print('=' * 78)
 
