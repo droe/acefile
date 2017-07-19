@@ -92,6 +92,13 @@ acebitstream_new(acebitstream_read_cb_t read, void *read_ctx, size_t bufsz)
 	return ctx;
 }
 
+void
+acebitstream_free(acebitstream_ctx_t *ctx)
+{
+	free(ctx->buf);
+	free(ctx);
+}
+
 uint32_t
 acebitstream_peek_bits(acebitstream_ctx_t *ctx, size_t n)
 {
@@ -126,12 +133,5 @@ acebitstream_read_bits(acebitstream_ctx_t *ctx, size_t n)
 	if (rv == ACEBITSTREAM_EOF)
 		return rv;
 	return value;
-}
-
-void
-acebitstream_free(acebitstream_ctx_t *ctx)
-{
-	free(ctx->buf);
-	free(ctx);
 }
 
