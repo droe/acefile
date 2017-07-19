@@ -953,11 +953,11 @@ class BitStream:
     >>> bs.read_bits(31); bs.read_bits(31)
     Traceback (most recent call last):
         ...
-    EOFError
+    EOFError: ...
     >>> BitStream(io.BytesIO(b'012')).read_bits(31)
     Traceback (most recent call last):
         ...
-    ValueError
+    ValueError: ...
     """
 
     @staticmethod
@@ -987,9 +987,9 @@ class BitStream:
         """
         tmpbuf = self.__file.read(FILE_BLOCKSIZE)
         if len(tmpbuf) == 0:
-            raise EOFError()
+            raise EOFError("Cannot refill beyond EOF")
         if len(tmpbuf) % 4 != 0:
-            raise ValueError()
+            raise ValueError("Truncated 32-bit word from file-like object")
 
         newbuf = self.__buf[-1:]
         for i in range(0, len(tmpbuf), 4):
