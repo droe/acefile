@@ -49,14 +49,19 @@ filelike_read(void *ctx, char *buf, size_t n)
 	PyObject *f = ctx;
 
 	method = PyObject_GetAttrString(f, (char*)"read");
+	if (method == NULL)
+		return 0;
 	arglist = Py_BuildValue("(k)", n);
+	if (arglist == NULL)
+		return 0;
 	buffer = PyObject_CallObject(method, arglist);
 	Py_DECREF(arglist);
 	if (buffer == NULL)
 		return 0;
 	ret = PyBytes_Size(buffer);
 	if (ret % 4) {
-		PyErr_SetNone(PyExc_ValueError);
+		PyErr_SetString(PyExc_ValueError,
+		                "Truncated 32-bit word from file-like object");
 		return 0;
 	}
 	p = PyBytes_AsString(buffer);
@@ -116,12 +121,10 @@ BitStream_init(BitStream *self, PyObject *args, PyObject *kwds)
 	static char *kwlist[] = {"f", "bufsz", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|I", kwlist, &f, &bufsz))
 		return -1;
-
 	Py_INCREF(f);
 	self->ctx = acebitstream_new(filelike_read, f, bufsz);
 	if (PyErr_Occurred())
 		return -1;
-
 	return 0;
 }
 
@@ -133,7 +136,8 @@ BitStream_peek_bits(BitStream *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "I", &n))
 		return NULL;
 	if (n > 31) {
-		PyErr_SetNone(PyExc_ValueError);
+		PyErr_SetString(PyExc_ValueError,
+		                "Cannot peek more than 31 bits");
 		return NULL;
 	}
 	ret = acebitstream_peek_bits(self->ctx, n);
@@ -150,14 +154,16 @@ BitStream_skip_bits(BitStream *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "I", &n))
 		return NULL;
 	if (n > 31) {
-		PyErr_SetNone(PyExc_ValueError);
+		PyErr_SetString(PyExc_ValueError,
+		                "Cannot skip more than 31 bits");
 		return NULL;
 	}
 	ret = acebitstream_skip_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
 	if (ret == ACEBITSTREAM_EOF) {
-		PyErr_SetNone(PyExc_EOFError);
+		PyErr_SetString(PyExc_EOFError,
+		                "Cannot skip bits beyond EOF");
 		return NULL;
 	}
 	Py_INCREF(Py_None);
@@ -172,14 +178,16 @@ BitStream_read_bits(BitStream *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "I", &n))
 		return NULL;
 	if (n > 31) {
-		PyErr_SetNone(PyExc_ValueError);
+		PyErr_SetString(PyExc_ValueError,
+		                "Cannot read more than 31 bits");
 		return NULL;
 	}
 	ret = acebitstream_read_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
 	if (ret == ACEBITSTREAM_EOF) {
-		PyErr_SetNone(PyExc_EOFError);
+		PyErr_SetString(PyExc_EOFError,
+		                "Cannot read bits beyond EOF");
 		return NULL;
 	}
 	return PyLong_FromLong(ret);
