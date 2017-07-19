@@ -35,7 +35,7 @@ Read/test/extract ACE 1.0 and 2.0 archives in pure python.
 
 This single-file, pure python 3, no-dependencies implementation is intended
 to be used as a library, but also provides a stand-alone unace utility.
-As pure-python implementation, it is significantly slower than
+As mostly pure-python implementation, it is significantly slower than
 native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,

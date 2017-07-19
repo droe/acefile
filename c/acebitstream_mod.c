@@ -30,7 +30,7 @@
  */
 
 /*
- * Fast implementation of BitStream class in c.
+ * Optional fast implementation of BitStream class in c.
  * For class documentation, see python implementation in acefile.py.
  */
 

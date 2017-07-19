@@ -20,7 +20,7 @@ https://www.roe.ch/acefile
 
 This single-file, pure python 3, no-dependencies implementation is intended
 to be used as a library, but also provides a stand-alone unace utility.
-As pure-python implementation, it is significantly slower than
+As mostly pure-python implementation, it is significantly slower than
 native implementations, but more robust against vulnerabilities.
 
 This implementation supports up to version 2.0 of the ACE archive format,
@@ -48,6 +48,13 @@ Python 3.  No other dependencies.
 ## Installation
 
     pip install acefile
+
+
+## Compiled module
+
+The `acefile` package includes an optional `acebitstream` module that
+implements the acefile.BitStream class in c, resulting in a 50% speedup.
+It is automatically used wherever it builds cleanly, but is not required.
 
 
 ## Library usage examples
