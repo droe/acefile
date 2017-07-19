@@ -113,7 +113,7 @@ BitStream_init(BitStream *self, PyObject *args, PyObject *kwds)
 	PyObject *f;
 	size_t bufsz = 131072;
 
-	static char *kwlist[] = {"bufsz", NULL};
+	static char *kwlist[] = {"f", "bufsz", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|I", kwlist, &f, &bufsz))
 		return -1;
 
