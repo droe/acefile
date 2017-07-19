@@ -1,4 +1,4 @@
-### acefile 0.6.2-dev
+### acefile 0.6.2 2017-07-19
 
 -   Library API tweaking:
     -   Remove AceArchive from __all__
