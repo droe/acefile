@@ -28,8 +28,11 @@ $(SDISTSIG): $(SDIST)
 upload: $(SDISTSIG)
 	$(TWINE) upload $(SDIST) $(SDISTSIG)
 
-test:
+doctest:
 	$(PYTHON) acefile.py --doctest
+
+test:
+	$(PYTHON) setup.py test
 
 build:
 	$(PYTHON) setup.py build_ext --inplace
@@ -44,5 +47,5 @@ clean:
 todo:
 	egrep -r 'XXX|TODO|FIXME' *.py
 
-.PHONY: all apidoc dist sign upload test build clean todo
+.PHONY: all apidoc dist sign upload doctest test build clean todo
 
