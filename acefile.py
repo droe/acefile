@@ -1337,6 +1337,73 @@ class LZ77:
             return dist
 
 
+    class Dictionary:
+        """
+        LZ77 dictionary.
+        """
+        def __init__(self, minsize, maxsize):
+            self.__dicdata = []
+            self.__dicsize = minsize
+            self.__maxsize = maxsize
+
+        def set_size(self, dicsize):
+            """
+            Set expected dictionary size for next decompression run.
+            """
+            self.__dicsize = min(max(dicsize, self.__dicsize), self.__maxsize)
+
+        def append(self, char):
+            """
+            Append output byte *char* to dictionary.
+            """
+            self.__dicdata.append(char)
+
+        def extend(self, buf):
+            """
+            Append output bytes *buf* to dictionary.
+            """
+            self.__dicdata.extend(buf)
+
+        def copy(self, dist, n):
+            """
+            Copy *n* previously produced output bytes to end of dictionary,
+            starting from position *dist* away from the end.
+            """
+            source_pos = len(self.__dicdata) - dist
+            if source_pos < 0:
+                raise CorruptedArchiveError("LZ77 copy src out of bounds")
+            # copy needs to be byte-wise for overlapping src and dst
+            for i in range(source_pos, source_pos + n):
+                self.__dicdata.append(self.__dicdata[i])
+
+        def copyin(self, buf):
+            """
+            Copy output bytes produced by other decompression methods
+            from *buf* into dictionary.
+            """
+            self.extend(buf)
+            self._truncate()
+
+        def copyout(self, n):
+            """
+            Return copy of last *n* produced output bytes for handing them
+            to the caller.
+            """
+            if n > 0:
+                assert n <= len(self.__dicdata)
+                chunk = self.__dicdata[-n:]
+            else:
+                chunk = []
+            self._truncate()
+            return chunk
+
+        def _truncate(self):
+            # only perform actual truncation when dictionary exceeds 4 times
+            # it's supposed size in order to prevent excessive data copying
+            if len(self.__dicdata) > 4 * self.__dicsize:
+                self.__dicdata = self.__dicdata[-self.__dicsize:]
+
+
     #   0..255  character literals
     # 256..259  copy from dictionary, dist from dist history -1..-4
     # 260..282  copy from dictionary, dist 0..22 bits from bitstream
@@ -1347,16 +1414,14 @@ class LZ77:
     MAXDISTATLEN3       = 8191
     MINDICBITS          = 10
     MAXDICBITS          = 22
-    MAXDICBITS2         = MAXDICBITS >> 1
+    MINDICSIZE          = 1 << MINDICBITS
     MAXDICSIZE          = 1 << MAXDICBITS
-    MAXDIST2            = 1 << MAXDICBITS2
     TYPECODE            = 260 + MAXDICBITS + 1
     NUMMAINCODES        = 260 + MAXDICBITS + 2
     NUMLENCODES         = 256 - 1
 
     def __init__(self):
-        self.__dictionary = []
-        self.__dicsize = 1 << LZ77.MINDICBITS
+        self.__dictionary = LZ77.Dictionary(LZ77.MINDICSIZE, LZ77.MAXDICSIZE)
 
     def reinit(self):
         """
@@ -1371,30 +1436,21 @@ class LZ77:
         """
         Set the required dictionary size for the next LZ77 decompression run.
         """
-        self.__dicsize = min(max(dicsize, self.__dicsize), LZ77.MAXDICSIZE)
+        self.__dictionary.set_size(dicsize)
 
-    def dic_copy(self, buf):
+    def dic_register(self, buf):
         """
-        Copy buf to LZ77 dictionary and truncate dictionary.
-        Used by other compression modes to register their output into the
-        LZ77 dictionary.
+        Register bytes in *buf* produced by other decompression modes into
+        the LZ77 dictionary.
         """
-        self.__dictionary.extend(buf)
-        self._dic_truncate()
-
-    def _dic_truncate(self):
-        """
-        Truncate the internal dictionary to the minimum required dictionary
-        size in order to save memory.  This is an operation in O(n).
-        """
-        self.__dictionary = self.__dictionary[-self.__dicsize:]
+        self.__dictionary.copyin(buf)
 
     def read(self, bs, want_size):
         """
         Read a block of LZ77 compressed data from BitStream *bs*.
         Reading will stop when *want_size* output bytes can be provided,
         or when a block ends, i.e. when a mode instruction is found.
-        Returns a tuple of the output bytes and the mode instruction.
+        Returns a tuple of the output byte-like and the mode instruction.
         """
         assert want_size > 0
         have_size = 0
@@ -1430,31 +1486,18 @@ class LZ77:
                     else:
                         copy_len += 4
                 copy_dist += 1
-                source_pos = len(self.__dictionary) - copy_dist
-                if source_pos < 0:
-                    raise CorruptedArchiveError("LZ77 copy from out of bounds")
-                # copy needs to be byte-wise for overlapping src and dst
-                for i in range(source_pos, source_pos + copy_len):
-                    self.__dictionary.append(self.__dictionary[i])
-                    have_size += 1
+                if have_size + copy_len > want_size:
+                    raise CorruptedArchiveError("LZ77 copy exceeds want_size")
+                self.__dictionary.copy(copy_dist, copy_len)
+                have_size += copy_len
             elif symbol == LZ77.TYPECODE:
                 next_mode = AceMode.read_from(bs)
                 break
             else:
                 raise CorruptedArchiveError("LZ77 symbol > LZ77.TYPECODE")
 
-        if have_size > want_size:
-            diff = have_size - want_size
-            self.__leftover = self.__dictionary[-diff:]
-            self.__dictionary = self.__dictionary[:-diff]
-            have_size -= diff
-        if have_size > 0:
-            assert have_size <= len(self.__dictionary)
-            chunk = self.__dictionary[-have_size:]
-        else:
-            chunk = []
-        self._dic_truncate()
-        return (bytes(chunk), next_mode)
+        chunk = self.__dictionary.copyout(have_size)
+        return (chunk, next_mode)
 
 
 
@@ -1666,7 +1709,7 @@ class Sound:
         Read a block of SOUND compressed data from BitStream *bs*.
         Reading will stop when *want_size* output bytes can be provided,
         or when a block ends, i.e. when a mode instruction is found.
-        Returns a tuple of the output bytes and the mode instruction.
+        Returns a tuple of the output byte-like and the mode instruction.
         """
         assert want_size > 0
         chunk = []
@@ -1680,7 +1723,7 @@ class Sound:
             sample = c_uchar(value + self.__channels[channel].rar_predict())
             chunk.append(sample)
             self.__channels[channel].rar_adjust(sample)
-        return (bytes(chunk), next_mode)
+        return (chunk, next_mode)
 
 
 
@@ -1886,7 +1929,7 @@ class Pic:
         Read a block of PIC compressed data from BitStream *bs*.
         Reading will stop when *want_size* output bytes can be provided,
         or when a block ends, i.e. when a mode instruction is found.
-        Returns a tuple of the output bytes and the mode instruction.
+        Returns a tuple of the output byte-like and the mode instruction.
         """
         assert want_size > 0
         chunk = []
@@ -1905,7 +1948,7 @@ class Pic:
             else:
                 chunk.extend(data[0:n])
                 self.__leftover = data[n:]
-        return (bytes(chunk), next_mode)
+        return (chunk, next_mode)
 
 
 
@@ -1977,7 +2020,7 @@ class ACE:
             outchunk = f.read(wantsize)
             if len(outchunk) == 0:
                 raise CorruptedArchiveError("Truncated stored file")
-            self.__lz77.dic_copy(outchunk)
+            self.__lz77.dic_register(outchunk)
             yield outchunk
             producedsize += len(outchunk)
 
@@ -1996,7 +2039,7 @@ class ACE:
             outchunk, next_mode = self.__lz77.read(bs, filesize)
             if next_mode:
                 raise CorruptedArchiveError("LZ77.TYPECODE in ACE 1.0 LZ77")
-            yield outchunk
+            yield bytes(outchunk)
             producedsize += len(outchunk)
 
     def decompress_blocked(self, f, filesize, dicsize):
@@ -2043,7 +2086,11 @@ class ACE:
                 while len(delta) < mode.delta_len:
                     chunk, nm = self.__lz77.read(bs,
                                                  mode.delta_len - len(delta))
-                    delta.extend(chunk)
+                    if len(delta) == 0:
+                        # avoid costly copy
+                        delta = chunk
+                    else:
+                        delta.extend(chunk)
                     if nm != None:
                         if next_mode:
                             raise CorruptedArchiveError("DELTA clobbers mode")
@@ -2131,13 +2178,13 @@ class ACE:
                                ACE.MODE_SOUND_32A, ACE.MODE_SOUND_32B):
                 outchunk, next_mode = self.__sound.read(bs,
                                                         filesize - producedsize)
-                self.__lz77.dic_copy(outchunk)
+                self.__lz77.dic_register(outchunk)
                 # end of ACE.MODE_SOUND_*
 
             elif mode.mode == ACE.MODE_PIC:
                 outchunk, next_mode = self.__pic.read(bs,
                                                       filesize - producedsize)
-                self.__lz77.dic_copy(outchunk)
+                self.__lz77.dic_register(outchunk)
                 # end of ACE.MODE_PIC
 
             else:
