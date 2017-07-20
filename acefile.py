@@ -403,6 +403,10 @@ class AceBlowfish:
     b'\\xb7wF@5.er'
     >>> bf.decrypt(b'\\xC7'*8)
     b'eE\\x05\\xc4\\xa5\\x85)\\xbc'
+    >>> bf.decrypt(b'123')
+    Traceback (most recent call last):
+        ...
+    AssertionError
     """
 
     SHA1_A = 0x67452301
