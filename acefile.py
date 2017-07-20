@@ -142,7 +142,7 @@ def c_div(q, d):
     >>> c_div(-11, 0)
     Traceback (most recent call last):
         ...
-    ZeroDivisionError:...
+    ZeroDivisionError
     """
     s = int(math.copysign(1, q) * math.copysign(1, d))
     return s * int(abs(q) / abs(d))
@@ -357,7 +357,7 @@ class EncryptedFileIO:
     >>> EncryptedFileIO(io.BytesIO(b'7'*17), AceBlowfish(b'123456789')).read()
     Traceback (most recent call last):
         ...
-    CorruptedArchiveError:...
+    CorruptedArchiveError
     """
     def __init__(self, f, engine):
         self.__file = f
@@ -959,11 +959,11 @@ class BitStream:
     >>> bs.read_bits(1)
     Traceback (most recent call last):
         ...
-    EOFError: ...
+    EOFError
     >>> BitStream(io.BytesIO(b'012')).read_bits(31)
     Traceback (most recent call last):
         ...
-    ValueError: ...
+    ValueError
     """
 
     @staticmethod
@@ -1381,7 +1381,7 @@ class LZ77:
         >>> dic.copy(9, 1)
         Traceback (most recent call last):
             ...
-        CorruptedArchiveError: ...
+        CorruptedArchiveError
         """
         def __init__(self, minsize, maxsize):
             self.__dicdata = []
