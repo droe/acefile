@@ -3733,6 +3733,9 @@ def unace():
 
     with open(archive) as f:
         if args.verbose:
+            if acebitstream == None:
+                eprint(("warning: acebitstream c extension unavailable, "
+                        "using pure-python bit stream"))
             eprint("processing archive %s" % f.filename)
             eprint("loaded %i volume(s) starting at volume %i" % (
                    f.volumes_loaded, f.volume))
