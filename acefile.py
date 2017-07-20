@@ -954,7 +954,9 @@ class BitStream:
     618
     >>> bs.read_bits(7)
     52
-    >>> bs.read_bits(31); bs.read_bits(31)
+    >>> bs.peek_bits(31)
+    0
+    >>> bs.read_bits(1)
     Traceback (most recent call last):
         ...
     EOFError: ...
@@ -976,8 +978,7 @@ class BitStream:
 
     def __init__(self, f):
         """
-        Initialize BitStream reading from file-like object *f* until EOF,
-        after which there is a maximum of 32 bits zero padding added.
+        Initialize BitStream reading from file-like object *f* until EOF.
         """
         self.__file = f
         self.__buf = array.array('I')
@@ -998,8 +999,6 @@ class BitStream:
         newbuf = self.__buf[-1:]
         for i in range(0, len(tmpbuf), 4):
             newbuf.append(struct.unpack('<L', tmpbuf[i:i+4])[0])
-        if len(tmpbuf) < FILE_BLOCKSIZE:
-            newbuf.append(0)
         if self.__pos > 0:
             self.__pos -= (self.__len - 32)
         self.__buf = newbuf
@@ -1008,6 +1007,9 @@ class BitStream:
     def skip_bits(self, bits):
         """
         Skip *bits* bits in the stream.
+        Raise EOFError when skipping beyond the end of the input file data.
+        The pure-python implementation supports skipping arbirarily many *bits*
+        while the c implementation is limited to a maximum of 31.
         """
         if self.__pos + bits > self.__len:
             self._refill()
@@ -1016,9 +1018,19 @@ class BitStream:
     def peek_bits(self, bits):
         """
         Peek at next *bits* bits in the stream without incrementing position.
+        A maximum of 31 bits beyond the end of the input file data are
+        guaranteed to be peekable; these bits are always unset.
+        The pure-python implementation supports peeking arbirarily many *bits*
+        while the c implementation is limited to a maximum of 31.
         """
         if self.__pos + bits > self.__len:
-            self._refill()
+            try:
+                self._refill()
+            except EOFError:
+                if len(self.__buf) * 32 == self.__len:
+                    self.__buf.append(0)
+                if self.__pos + bits > self.__len + 31:
+                    raise
 
         peeked = min(bits, 32 - (self.__pos % 32))
         res = self._getbits(self.__buf[self.__pos // 32],
@@ -1036,6 +1048,8 @@ class BitStream:
     def read_bits(self, bits):
         """
         Read *bits* bits from bitstream and increment position accordingly.
+        The pure-python implementation supports reading arbirarily many *bits*
+        while the c implementation is limited to a maximum of 31.
         """
         value = self.peek_bits(bits)
         self.skip_bits(bits)
