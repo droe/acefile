@@ -3937,13 +3937,19 @@ def unace():
 
 
 
+def testsuite():
+    import doctest
+    return doctest.DocTestSuite(optionflags=doctest.IGNORE_EXCEPTION_DETAIL)
+
+def test():
+    import doctest
+    fails, tests = doctest.testmod(optionflags=doctest.IGNORE_EXCEPTION_DETAIL)
+    sys.exit(min(1, fails))
+
+
+
 if __name__ == '__main__':
     if '--doctest' in sys.argv:
-        import doctest
-        failures, tests = doctest.testmod(optionflags=doctest.ELLIPSIS)
-        if failures > 0:
-            sys.exit(1)
-        else:
-            sys.exit(0)
+        test()
     unace()
 

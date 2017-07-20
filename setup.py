@@ -52,18 +52,26 @@ def run_setup(with_optional_extensions):
                 'acefile-unace=acefile:unace',
             ],
         },
+        test_suite = 'acefile.testsuite',
     )
 
 try:
     run_setup(True)
-except:
+except Exception:
     print('=' * 78)
     print('WARNING: The optional C extension(s) could not be compiled!')
     print('Retrying setup without C extension(s) enabled.')
     print('=' * 78)
-    run_setup(False)
-    print('=' * 78)
-    print('WARNING: The optional C extension(s) could not be compiled!')
-    print('The module will still be functional, but significantly slower.')
-    print('=' * 78)
+    try:
+        run_setup(False)
+        print('=' * 78)
+        print('WARNING: The optional C extension(s) could not be compiled!')
+        print('The module will still be functional, but significantly slower.')
+        print('=' * 78)
+    except Exception:
+        print('=' * 78)
+        print('WARNING: The optional C extension(s) could not be compiled!')
+        print('ERROR: Retrying failed! Problem not related to C extensions.')
+        print('=' * 78)
+        raise
 
