@@ -1320,6 +1320,17 @@ class LZ77:
     class DistHist:
         """
         Distance value cache for storing the last SIZE used LZ77 distances.
+
+        >>> dh = LZ77.DistHist()
+        >>> dh.append(1);dh.append(2);dh.append(3);dh.append(4);dh.append(5)
+        >>> dh.retrieve(2)
+        3
+        >>> dh.retrieve(0)
+        3
+        >>> dh.retrieve(1)
+        5
+        >>> dh.retrieve(1)
+        3
         """
         SIZE = 4
 
@@ -1339,7 +1350,20 @@ class LZ77:
 
     class Dictionary:
         """
-        LZ77 dictionary.
+        LZ77 dictionary.  Stores at least the last dictionary-size number of
+        decompressed bytes and supports the LZ77 copy operation.  Also doubles
+        as decompressed bytes buffer.  Consequently, the dictionary will grow
+        as bytes are appended to it until copyout or copyin are called.
+
+        >>> dic = LZ77.Dictionary(4, 8)
+        >>> dic.append(1); dic.append(2); dic.extend((3,4))
+        >>> dic.copy(4, 4)
+        >>> dic.copyout(8)
+        [1, 2, 3, 4, 1, 2, 3, 4]
+        >>> dic.copy(9, 1)
+        Traceback (most recent call last):
+            ...
+        CorruptedArchiveError: ...
         """
         def __init__(self, minsize, maxsize):
             self.__dicdata = []
@@ -1379,15 +1403,18 @@ class LZ77:
         def copyin(self, buf):
             """
             Copy output bytes produced by other decompression methods
-            from *buf* into dictionary.
+            from *buf* into dictionary.  This operation may cause the
+            dictionary to shrink to the indended dictionary size; make sure
+            to copyout all needed output bytes before calling copyin.
             """
             self.extend(buf)
             self._truncate()
 
         def copyout(self, n):
             """
-            Return copy of last *n* produced output bytes for handing them
-            to the caller.
+            Return copy of last *n* appended output bytes for handing them
+            to the caller.  This operation may cause the dictionary to shrink
+            to the intended dictionary size.
             """
             if n > 0:
                 assert n <= len(self.__dicdata)
