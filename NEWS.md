@@ -1,5 +1,8 @@
 ### acefile 0.6.3-dev
 
+-   10% performance increase for larger archives by avoiding excessive LZ77
+    dictionary truncations.
+
 
 ### acefile 0.6.2 2017-07-19
 
