@@ -60,13 +60,16 @@ filelike_read(void *ctx, char *buf, size_t n)
 		return 0;
 	ret = PyBytes_Size(buffer);
 	if (ret % 4) {
+		Py_DECREF(buffer);
 		PyErr_SetString(PyExc_ValueError,
 		                "Truncated 32-bit word from file-like object");
 		return 0;
 	}
 	p = PyBytes_AsString(buffer);
-	if (p == NULL)
+	if (p == NULL) {
+		Py_DECREF(buffer);
 		return 0;
+	}
 #if BIG_ENDIAN_SWAP
 	for (size_t i = 0; i < ret; i += 4) {
 		buf[i]   = p[i+3];
