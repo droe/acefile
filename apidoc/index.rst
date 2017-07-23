@@ -199,8 +199,9 @@ in their ``FILE`` header:
         dictionary size of 1K..4M literals.
 
     **EXE**
-        LZ77 over Huffman with a preprocessor that adjusts target addresses of
-        x86 JMP and CALL instructions in order to achieve a higher LZ77
+        LZ77 over Huffman with a preprocessor that converts the relative
+        target addresses of x86 relative JMP and CALL instructions to absolute
+        addresses before LZ77 compression in order to achieve a higher LZ77
         compression ratio for executables.
 
     **DELTA**
