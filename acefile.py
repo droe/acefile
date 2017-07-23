@@ -83,8 +83,15 @@ except:
 
 
 
-# arbitrarily chosen buffer size to use for buffered file operations that
-# have no obvious natural block size
+# Very basic debugging facility; if set to True, exceptions raised during
+# testing of archives will be raised and a minimal set of state information
+# will be printed to stderr.
+DEBUG = False
+
+
+
+# Arbitrarily chosen buffer size to use for buffered file operations that
+# have no obvious natural block size.
 FILE_BLOCKSIZE = 131072
 assert FILE_BLOCKSIZE % 4 == 0
 
@@ -1111,6 +1118,8 @@ class AceMode:
             mode.delta_len = bs.read_bits(17)
         elif mode.mode == ACE.MODE_LZ77_EXE:
             mode.exe_mode = bs.read_bits(8)
+        if DEBUG:
+            eprint(mode)
         return mode
 
     def __init__(self, mode):
@@ -3538,6 +3547,8 @@ class AceArchive:
         except EncryptedArchiveError:
             raise
         except AceError:
+            if DEBUG:
+                raise
             return False
 
     def testall(self, *, pwd=None):
@@ -3759,6 +3770,8 @@ def unace():
             help='suppress all interactive input')
     parser.add_argument('-v', '--verbose', action='store_true',
             help='be more verbose')
+    parser.add_argument('--debug', action='store_true',
+            help=argparse.SUPPRESS)
 
     # not implemented arguments that other unace implementations have:
     # --(no-)full-path              always full path extraction
@@ -3773,6 +3786,10 @@ def unace():
         eprint("%s: error: not extracting, but files were specified" %
                os.path.basename(sys.argv[0]))
         sys.exit(1)
+
+    if args.debug:
+        global DEBUG
+        DEBUG = True
 
     if args.archive == '-':
         if sys.stdin.seekable():

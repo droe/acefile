@@ -1,5 +1,8 @@
 ### acefile 0.6.4-dev
 
+-   Add basic debugging facility: `acefile.DEBUG = True` and CLI `--debug`
+    hidden option.
+
 
 ### acefile 0.6.3 2017-07-23
 
