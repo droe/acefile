@@ -1772,16 +1772,21 @@ class Sound:
 
 
 
-def classinit_pic(cls):
+def classinit_pic_dif_bit_width(cls):
     """
-    Decorator that calculates the static tables for the Pic class.
-    This ensures that the tables are calculated exactly once.
+    Decorator that adds the PIC dif_bit_width static table to *cls*.
     """
     cls._dif_bit_width = []
     for i in range(0, 128):
         cls._dif_bit_width.append((2 * i).bit_length())
     for i in range(-128, 0):
         cls._dif_bit_width.append((- 2 * i - 1).bit_length())
+    return cls
+
+def classinit_pic_quantizers(cls):
+    """
+    Decorator that adds the PIC quantizer static tables to *cls*.
+    """
     cls._quantizer   = []
     cls._quantizer9  = []
     cls._quantizer81 = []
@@ -1807,18 +1812,17 @@ def classinit_pic(cls):
         cls._quantizer81.append(81 * q)
     return cls
 
-@classinit_pic
 class Pic:
     """
     ACE 2.0 PIC mode decompression engine.
 
-    Two-dimensional pixel colour predictor over Huffman-encoding, resulting
-    in a higher compression ratio for uncompressed picture data.
+    Two-dimensional pixel value predictor over Huffman encoding, resulting in a
+    higher compression ratio for uncompressed picture data.
     """
 
-    class Context:
+    class ErrContext:
         """
-        A single PIC mode context.
+        A prediction error context.
         """
         def __init__(self):
             self.used_counter = 0
@@ -1827,14 +1831,142 @@ class Pic:
             self.error_counters = [0] * 4
 
 
-    class Model:
+    class ErrModel:
         """
-        A model comprising of NUMCTX contexts.
+        A prediction error model comprising of N error contexts.
         """
-        NUMCTX  = 365
+        N = 365
 
         def __init__(self):
-            self.contexts = [Pic.Context() for i in range(Pic.Model.NUMCTX)]
+            self.contexts = [Pic.ErrContext() for _ in range(Pic.ErrModel.N)]
+
+
+    @classinit_pic_dif_bit_width
+    @classinit_pic_quantizers
+    class PixelDecoder:
+        _producers = []
+
+        @classmethod
+        def register(cls, othercls):
+            cls._producers.append(othercls)
+            return othercls
+
+        @classmethod
+        def read_from(cls, bs):
+            """
+            Read a pixel decoder identifier from BitStream *bs* and return
+            the appropriate PixelDecoder instance.
+            """
+            try:
+                return cls._producers[bs.read_bits(2)]()
+            except IndexError:
+                raise CorruptedArchiveError("Unknown producer requested")
+
+        def shift_pixels(self):
+            """
+            Shift pixels to the left to prepare for the next column.
+
+                C A D
+                B X
+            """
+            self._pixel_c = self._pixel_a
+            self._pixel_a = self._pixel_d
+            self._pixel_b = self._pixel_x
+
+        def get_context(self):
+            """
+            Calculate the error context to use based on the differences
+            between the neighbouring pixels D-A, A-C and C-B:
+
+                C A D
+                B X
+            """
+            ctx = self._quantizer81[255 + self._pixel_d - self._pixel_a] + \
+                  self._quantizer9 [255 + self._pixel_a - self._pixel_c] + \
+                  self._quantizer  [255 + self._pixel_c - self._pixel_b]
+            return abs(ctx)
+
+        def _predict(self, use_predictor):
+            """
+            With X being the current position, the predictors use the pixels
+            above (A), to the left (B) and in the corner (C):
+
+                C A D
+                B X
+            """
+            if use_predictor == 0:
+                return self._pixel_a
+            elif use_predictor == 1:
+                return self._pixel_b
+            elif use_predictor == 2:
+                return (self._pixel_a + self._pixel_b) >> 1
+            elif use_predictor == 3:
+                return c_uchar(self._pixel_a + self._pixel_b - self._pixel_c)
+
+        def update_pixel_x(self, bs, context):
+            """
+            Read the next data point from BitStream *bs* and store the
+            resulting pixel X based on ErrContext *context*.
+            """
+            context.used_counter += 1
+            r = c_div(context.average_counter, context.used_counter)
+            epsilon = bs.read_golomb_rice(r.bit_length(), signed=True)
+            predicted = self._predict(context.predictor_number)
+            self._pixel_x = c_uchar(predicted + epsilon)
+
+            context.average_counter += abs(epsilon)
+            if context.used_counter == 128:
+                context.used_counter >>= 1
+                context.average_counter >>= 1
+
+            for i in range(len(context.error_counters)):
+                context.error_counters[i] += \
+                        self._dif_bit_width[self._pixel_x - self._predict(i)]
+                if i == 0 or context.error_counters[i] < \
+                             context.error_counters[best_predictor]:
+                    best_predictor = i
+            context.predictor_number = best_predictor
+
+            if any([ec > 0x7F for ec in context.error_counters]):
+                for i in range(len(context.error_counters)):
+                    context.error_counters[i] >>= 1
+
+    @PixelDecoder.register
+    class PixelDecoder0(PixelDecoder):
+        def __init__(self):
+            self._pixel_a = 0
+            self._pixel_b = 0
+            self._pixel_c = 0
+            self._pixel_x = 0
+
+        def update_pixel_d(self, thisplane_d, refplane_d):
+            self._pixel_d = thisplane_d
+
+        def produce(self, refplane_x):
+            return self._pixel_x
+
+    class DifferentialPixelDecoder(PixelDecoder):
+        def __init__(self):
+            self._pixel_a = 128
+            self._pixel_b = 128
+            self._pixel_c = 128
+            self._pixel_x = 128
+
+    @PixelDecoder.register
+    class PixelDecoder1(DifferentialPixelDecoder):
+        def update_pixel_d(self, thisplane_d, refplane_d):
+            self._pixel_d = c_uchar(128 + thisplane_d - refplane_d)
+
+        def produce(self, refplane_x):
+            return c_uchar(self._pixel_x + refplane_x - 128)
+
+    @PixelDecoder.register
+    class PixelDecoder2(DifferentialPixelDecoder):
+        def update_pixel_d(self, thisplane_d, refplane_d):
+            self._pixel_d = c_uchar(128 + thisplane_d - (refplane_d * 11 >> 4))
+
+        def produce(self, refplane_x):
+            return c_uchar(self._pixel_x + (refplane_x * 11 >> 4) - 128)
 
 
     def __init__(self):
@@ -1848,126 +1980,45 @@ class Pic:
         """
         self.__width = bs.read_golomb_rice(12)
         self.__planes = bs.read_golomb_rice(2)
-        self.__lastdata = [0] * (self.__width + self.__planes)
+        if self.__width % self.__planes > 0:
+            raise CorruptedArchiveError("width not a multiple of planes")
+        self.__errmodel_plane0    = self.ErrModel()
+        self.__errmodel_plane1toN = self.ErrModel()
+        self.__prevrow = [0] * (self.__width + self.__planes)
         self.__leftover = []
-        self.__models = [self.Model(), self.Model()]
-        self.__pixel_a = 0
-        self.__pixel_b = 0
-        self.__pixel_c = 0
-        self.__pixel_d = 0
-        self.__pixel_x = 0
 
-    def _set_pixels(self, use_predictor, val, prev_val):
-        self.__pixel_d = val
-        if use_predictor == 1:
-            self.__pixel_a = 128
-            self.__pixel_b = 128
-            self.__pixel_c = 128
-            self.__pixel_x = 128
-            self.__pixel_d -= prev_val - 128
-            self.__pixel_d &= 0xFF
-        elif use_predictor == 2:
-            self.__pixel_a = 128
-            self.__pixel_b = 128
-            self.__pixel_c = 128
-            self.__pixel_x = 128
-            self.__pixel_d -= (prev_val * 11 >> 4) - 128
-            self.__pixel_d &= 0xFF
-        else:
-            self.__pixel_a = 0
-            self.__pixel_b = 0
-            self.__pixel_c = 0
-            self.__pixel_x = 0
-
-    def _rotate_pixels(self):
-        self.__pixel_c = self.__pixel_a
-        self.__pixel_a = self.__pixel_d
-        self.__pixel_b = self.__pixel_x
-
-    def _predict(self, use_predictor):
-        if use_predictor == 0:
-            return self.__pixel_a
-        elif use_predictor == 1:
-            return self.__pixel_b
-        elif use_predictor == 2:
-            return (self.__pixel_a + self.__pixel_b) >> 1
-        elif use_predictor == 3:
-            return c_uchar(self.__pixel_a + self.__pixel_b - self.__pixel_c)
-
-    def _produce(self, use_predictor, prev_val):
-        if use_predictor == 0:
-            return self.__pixel_x
-        elif use_predictor == 1:
-            return c_uchar(self.__pixel_x + prev_val - 128)
-        elif use_predictor == 2:
-            return c_uchar(self.__pixel_x + (prev_val * 11 >> 4) - 128)
-
-    def _get_pixel_context(self, use_predictor, val, prev_val):
-        self.__pixel_d = val
-        if use_predictor == 1:
-            self.__pixel_d -= prev_val - 128
-        elif use_predictor == 2:
-            self.__pixel_d -= (prev_val * 11 >> 4) - 128
-        self.__pixel_d &= 0xFF
-
-        ctx = self._quantizer81[255 + self.__pixel_d - self.__pixel_a] + \
-              self._quantizer9 [255 + self.__pixel_a - self.__pixel_c] + \
-              self._quantizer  [255 + self.__pixel_c - self.__pixel_b]
-        return abs(ctx)
-
-    def _get_pixel_x(self, bs, context):
-        context.used_counter += 1
-
-        r = c_div(context.average_counter, context.used_counter)
-        epsilon = bs.read_golomb_rice(r.bit_length(), signed=True)
-        predicted = self._predict(context.predictor_number)
-        pixel_x = c_uchar(predicted + epsilon)
-
-        for i in range(len(context.error_counters)):
-            context.error_counters[i] += \
-                    self._dif_bit_width[pixel_x - self._predict(i)]
-            if i == 0 or context.error_counters[i] < \
-                         context.error_counters[best_predictor]:
-                best_predictor = i
-
-        if any([ec & 0x80 for ec in context.error_counters]):
-            for i in range(len(context.error_counters)):
-                context.error_counters[i] >>= 1
-
-        context.predictor_number = best_predictor
-        context.average_counter += abs(epsilon)
-
-        if context.used_counter == 128:
-            context.used_counter >>= 1
-            context.average_counter >>= 1
-
-        return pixel_x
-
-    def _line(self, bs):
-        data = [0] * (self.__width + self.__planes)
+    def _row(self, bs):
+        """
+        Decompress a row of pixels.
+        """
+        # NOTE
+        # Some indices into row and self.__prevrow are outside of the
+        # expected range 0..width, as indicated below.  Additionally, when
+        # processing the first row, self.__prevrow is all zeroes.
+        row = [0] * (self.__width + self.__planes)
         for plane in range(self.__planes):
             if plane == 0:
-                use_model = 0
-                use_predictor = 0
+                errmodel = self.__errmodel_plane0
+                decoder = Pic.PixelDecoder0()
             else:
-                use_model = 1
-                use_predictor = bs.read_bits(2)
-
-            self._set_pixels(use_predictor,
-                             self.__lastdata[plane],
-                             self.__lastdata[plane - 1])
+                errmodel = self.__errmodel_plane1toN
+                decoder = Pic.PixelDecoder.read_from(bs)
+            # plane-1 is -1 for first plane
+            decoder.update_pixel_d(self.__prevrow[plane],
+                                   self.__prevrow[plane - 1])
 
             for col in range(plane, self.__width, self.__planes):
-                self._rotate_pixels()
-                use_context = self._get_pixel_context(use_predictor,
-                        self.__lastdata[self.__planes + col],
-                        self.__lastdata[self.__planes + col - 1])
-                context = self.__models[use_model].contexts[use_context]
-                self.__pixel_x = self._get_pixel_x(bs, context)
-                data[col] = self._produce(use_predictor, data[col - 1])
+                decoder.shift_pixels()
+                # col+self.__planes is > width for last col in plane
+                decoder.update_pixel_d(self.__prevrow[col + self.__planes],
+                                       self.__prevrow[col + self.__planes - 1])
+                context = errmodel.contexts[decoder.get_context()]
+                decoder.update_pixel_x(bs, context)
+                # col-1 is -1 for first col in first plane
+                row[col] = decoder.produce(row[col - 1])
 
-        self.__lastdata = data
-        return data[:self.__width]
+        self.__prevrow = row
+        return row[:self.__width]
 
     def read(self, bs, want_size):
         """
@@ -1986,7 +2037,7 @@ class Pic:
             if bs.read_bits(1) == 0:
                 next_mode = AceMode.read_from(bs)
                 break
-            data = self._line(bs)
+            data = self._row(bs)
             n = min(want_size - len(chunk), len(data))
             if n == len(data):
                 chunk.extend(data)
