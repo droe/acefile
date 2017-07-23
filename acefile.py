@@ -1584,10 +1584,10 @@ class Sound:
             self.__syms_to_read -= 1
             return self.__trees[model].read_symbol(bs)
 
-    def classinit_channel(cls):
+
+    def classinit_sound_quantizer(cls):
         """
-        Decorator that calculates the static tables for the Channel class.
-        This ensures that the tables are calculated exactly once.
+        Decorator that adds the static quantizer table to class *cls*.
         """
         cls._quantizer = [0] * 256
         for i in range(1, 129):
@@ -1595,7 +1595,7 @@ class Sound:
             cls._quantizer[-i] = cls._quantizer[i] = i.bit_length()
         return cls
 
-    @classinit_channel
+    @classinit_sound_quantizer
     class Channel:
         """
         Decompression parameters and methods for a single audio channel.
@@ -1772,46 +1772,6 @@ class Sound:
 
 
 
-def classinit_pic_dif_bit_width(cls):
-    """
-    Decorator that adds the PIC dif_bit_width static table to *cls*.
-    """
-    cls._dif_bit_width = []
-    for i in range(0, 128):
-        cls._dif_bit_width.append((2 * i).bit_length())
-    for i in range(-128, 0):
-        cls._dif_bit_width.append((- 2 * i - 1).bit_length())
-    return cls
-
-def classinit_pic_quantizers(cls):
-    """
-    Decorator that adds the PIC quantizer static tables to *cls*.
-    """
-    cls._quantizer   = []
-    cls._quantizer9  = []
-    cls._quantizer81 = []
-    for i in range(-255, -20):
-        cls._quantizer.append(-4)
-    for i in range(-20, -6):
-        cls._quantizer.append(-3)
-    for i in range(-6, -2):
-        cls._quantizer.append(-2)
-    for i in range(-2, 0):
-        cls._quantizer.append(-1)
-    cls._quantizer.append(0)
-    for i in range(1, 3):
-        cls._quantizer.append(1)
-    for i in range(3, 7):
-        cls._quantizer.append(2)
-    for i in range(7, 21):
-        cls._quantizer.append(3)
-    for i in range(21, 256):
-        cls._quantizer.append(4)
-    for q in cls._quantizer:
-        cls._quantizer9.append(9 * q)
-        cls._quantizer81.append(81 * q)
-    return cls
-
 class Pic:
     """
     ACE 2.0 PIC mode decompression engine.
@@ -1840,6 +1800,46 @@ class Pic:
         def __init__(self):
             self.contexts = [Pic.ErrContext() for _ in range(Pic.ErrModel.N)]
 
+
+    def classinit_pic_dif_bit_width(cls):
+        """
+        Decorator that adds the PIC dif_bit_width static table to *cls*.
+        """
+        cls._dif_bit_width = []
+        for i in range(0, 128):
+            cls._dif_bit_width.append((2 * i).bit_length())
+        for i in range(-128, 0):
+            cls._dif_bit_width.append((- 2 * i - 1).bit_length())
+        return cls
+
+    def classinit_pic_quantizers(cls):
+        """
+        Decorator that adds the PIC quantizer static tables to *cls*.
+        """
+        cls._quantizer   = []
+        cls._quantizer9  = []
+        cls._quantizer81 = []
+        for i in range(-255, -20):
+            cls._quantizer.append(-4)
+        for i in range(-20, -6):
+            cls._quantizer.append(-3)
+        for i in range(-6, -2):
+            cls._quantizer.append(-2)
+        for i in range(-2, 0):
+            cls._quantizer.append(-1)
+        cls._quantizer.append(0)
+        for i in range(1, 3):
+            cls._quantizer.append(1)
+        for i in range(3, 7):
+            cls._quantizer.append(2)
+        for i in range(7, 21):
+            cls._quantizer.append(3)
+        for i in range(21, 256):
+            cls._quantizer.append(4)
+        for q in cls._quantizer:
+            cls._quantizer9.append(9 * q)
+            cls._quantizer81.append(81 * q)
+        return cls
 
     @classinit_pic_dif_bit_width
     @classinit_pic_quantizers
