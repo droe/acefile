@@ -1,7 +1,9 @@
-### acefile 0.6.3-dev
+### acefile 0.6.3 2017-07-23
 
 -   10% performance increase for larger archives by avoiding excessive LZ77
     dictionary truncations.
+-   Improve error handling of acebitstream.BitStream.
+-   Improve unit test integration and coverage; `setup.py test` now supported.
 
 
 ### acefile 0.6.2 2017-07-19

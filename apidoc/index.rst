@@ -215,7 +215,7 @@ in their ``FILE`` header:
         data.
 
     **PIC**
-        Two-dimensional pixel colour predictor over Huffman-encoding, resulting
+        Two-dimensional pixel value predictor over Huffman-encoding, resulting
         in a higher compression ratio for uncompressed picture data.
 
 Solid archives use a single dictionary for the whole archive, while non-solid
