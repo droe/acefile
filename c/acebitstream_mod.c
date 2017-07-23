@@ -109,19 +109,17 @@ BitStream_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 	self = (BitStream*)type->tp_alloc(type, 0);
 	if (self == NULL)
 		return NULL;
-
 	self->ctx = NULL;
-
 	return (PyObject*)self;
 }
 
 static int
 BitStream_init(BitStream *self, PyObject *args, PyObject *kwds)
 {
+	static char *kwlist[] = {"f", "bufsz", NULL};
 	PyObject *f;
 	size_t bufsz = 131072;
 
-	static char *kwlist[] = {"f", "bufsz", NULL};
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|I", kwlist, &f, &bufsz))
 		return -1;
 	Py_INCREF(f);
@@ -136,6 +134,7 @@ BitStream_peek_bits(BitStream *self, PyObject *args)
 {
 	size_t ret;
 	unsigned int n = 0;
+
 	if (!PyArg_ParseTuple(args, "I", &n))
 		return NULL;
 	if (n > 31) {
@@ -143,6 +142,7 @@ BitStream_peek_bits(BitStream *self, PyObject *args)
 		                "Cannot peek more than 31 bits");
 		return NULL;
 	}
+
 	ret = acebitstream_peek_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
@@ -154,6 +154,7 @@ BitStream_skip_bits(BitStream *self, PyObject *args)
 {
 	size_t ret;
 	unsigned int n = 0;
+
 	if (!PyArg_ParseTuple(args, "I", &n))
 		return NULL;
 	if (n > 31) {
@@ -161,6 +162,7 @@ BitStream_skip_bits(BitStream *self, PyObject *args)
 		                "Cannot skip more than 31 bits");
 		return NULL;
 	}
+
 	ret = acebitstream_skip_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
@@ -178,6 +180,7 @@ BitStream_read_bits(BitStream *self, PyObject *args)
 {
 	size_t ret;
 	unsigned int n = 0;
+
 	if (!PyArg_ParseTuple(args, "I", &n))
 		return NULL;
 	if (n > 31) {
@@ -185,6 +188,7 @@ BitStream_read_bits(BitStream *self, PyObject *args)
 		                "Cannot read more than 31 bits");
 		return NULL;
 	}
+
 	ret = acebitstream_read_bits(self->ctx, n);
 	if (PyErr_Occurred())
 		return NULL;
