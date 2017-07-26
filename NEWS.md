@@ -1,4 +1,4 @@
-### acefile 0.6.4-dev
+### acefile 0.6.4 2017-07-26
 
 -   Fix signedness of ACE 2.0 SOUND mode diff calculations (issue #5).
 -   Add basic debugging facility: `acefile.DEBUG = True` and CLI `--debug`
