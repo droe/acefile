@@ -2829,7 +2829,7 @@ class AceVolume:
 
     def __init__(self, file, mode='r', *, search=524288, _idx=0, _am=None):
         if mode != 'r':
-            raise NotImplementedError()
+            raise NotImplementedError("mode != 'r' not implemented")
         if isinstance(file, str):
             self.__file = builtins.open(file, 'rb')
             self.__filename = file
@@ -2847,7 +2847,7 @@ class AceVolume:
         try:
             self._parse_headers(search)
             if self.__main_header == None:
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("no main header")
         except:
             self.close()
             raise
@@ -3011,7 +3011,7 @@ class AceVolume:
                 i += cmsz
             header.reserved2 = buf[i:]
             if self.__main_header != None:
-                raise CorruptedArchiveError("multiple main headers found")
+                raise CorruptedArchiveError("multiple main headers")
             self.__main_header = header
 
         elif htype in (Header.TYPE_FILE32, Header.TYPE_FILE64):
