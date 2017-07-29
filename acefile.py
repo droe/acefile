@@ -2939,14 +2939,15 @@ class AceVolume:
                 pass
         if not found_at_start:
             if search == 0:
-                raise MainHeaderNotFoundError()
+                raise MainHeaderNotFoundError("no ACE header at offset 0")
             self.__file.seek(0, 0)
             buf = self.__file.read(search)
             magicpos = 7
             while magicpos < search:
                 magicpos = buf.find(MainHeader.MAGIC, magicpos + 1, search)
                 if magicpos == -1:
-                    raise MainHeaderNotFoundError()
+                    raise MainHeaderNotFoundError(
+                            "no ACE header within first %i bytes" % search)
                 self.__file.seek(magicpos - 7, 0)
                 try:
                     self._parse_header()
@@ -2966,23 +2967,23 @@ class AceVolume:
         """
         buf = self.__file.read(4)
         if len(buf) < 4:
-            raise CorruptedArchiveError()
+            raise CorruptedArchiveError("truncated header")
         hcrc, hsize = struct.unpack('<HH', buf)
         buf = self.__file.read(hsize)
         if len(buf) < hsize:
-            raise CorruptedArchiveError()
+            raise CorruptedArchiveError("truncated header")
         if ace_crc16(buf) != hcrc:
-            raise CorruptedArchiveError()
+            raise CorruptedArchiveError("header CRC failed")
         htype, hflags = struct.unpack('<BH', buf[0:3])
         i = 3
 
         if htype == Header.TYPE_MAIN:
             header = MainHeader(hcrc, hsize, htype, hflags)
             if header.flag(Header.FLAG_ADDSIZE):
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("main header has addsize > 0")
             header.magic = buf[3:10]
             if header.magic != MainHeader.MAGIC:
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("main header without magic")
             header.eversion, \
             header.cversion, \
             header.host, \
@@ -2992,49 +2993,49 @@ class AceVolume:
             i = 26
             if header.flag(Header.FLAG_ADVERT):
                 if i + 1 > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 avsz, = struct.unpack('<B', buf[i:i+1])
                 i += 1
                 if i + avsz > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 header.advert = buf[i:i+avsz]
                 i += avsz
             if header.flag(Header.FLAG_COMMENT):
                 if i + 2 > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 cmsz, = struct.unpack('<H', buf[i:i+2])
                 i += 2
                 if i + cmsz > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 header.comment = ACE.decompress_comment(buf[i:i+cmsz])
                 i += cmsz
             header.reserved2 = buf[i:]
             if self.__main_header != None:
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("multiple main headers found")
             self.__main_header = header
 
         elif htype in (Header.TYPE_FILE32, Header.TYPE_FILE64):
             header = FileHeader(hcrc, hsize, htype, hflags)
             if not header.flag(Header.FLAG_ADDSIZE):
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("file header with addsize == 0")
             if header.flag(Header.FLAG_64BIT):
                 if htype != Header.TYPE_FILE64:
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("64 bit flag in 32 bit header")
                 if i + 16 > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 header.packsize, \
                 header.origsize, = struct.unpack('<QQ', buf[i:i+16])
                 i += 16
             else:
                 if htype != Header.TYPE_FILE32:
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("32 bit flag in 64 bit header")
                 if i + 8 > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 header.packsize, \
                 header.origsize, = struct.unpack('<LL', buf[i:i+8])
                 i += 8
             if i + 20 > len(buf):
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("truncated header")
             header.datetime, \
             header.attribs, \
             header.crc32, \
@@ -3045,16 +3046,16 @@ class AceVolume:
             fnsz = struct.unpack('<LLLBBHHH', buf[i:i+20])
             i += 20
             if i + fnsz > len(buf):
-                raise CorruptedArchiveError()
+                raise CorruptedArchiveError("truncated header")
             header.filename = buf[i:i+fnsz]
             i += fnsz
             if header.flag(Header.FLAG_COMMENT):
                 if i + 2 > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 cmsz, = struct.unpack('<H', buf[i:i+2])
                 i += 2
                 if i + cmsz > len(buf):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("truncated header")
                 header.comment = ACE.decompress_comment(buf[i:i+cmsz])
                 i += cmsz
             header.reserved2 = buf[i:]
@@ -3068,11 +3069,11 @@ class AceVolume:
             if header.flag(Header.FLAG_ADDSIZE):
                 if header.flag(Header.FLAG_64BIT):
                     if i + 8 > len(buf):
-                        raise CorruptedArchiveError()
+                        raise CorruptedArchiveError("truncated header")
                     addsz, = struct.unpack('<Q', buf[i:i+8])
                 else:
                     if i + 4 > len(buf):
-                        raise CorruptedArchiveError()
+                        raise CorruptedArchiveError("truncated header")
                     addsz, = struct.unpack('<L', buf[i:i+4])
             self.__file.seek(addsz, 1)
 
@@ -3166,10 +3167,10 @@ class AceArchive:
         See :meth:`AceArchive._open`.
         """
         if mode != 'r':
-            raise NotImplementedError()
+            raise NotImplementedError("mode != 'r' not implemented")
         if isinstance(file, (tuple, list)):
             if len(file) == 0:
-                raise ValueError()
+                raise ValueError("file is empty tuple/list")
         else:
             file = (file,)
 
@@ -3197,9 +3198,9 @@ class AceArchive:
                 last_volume = None
                 for vol in self.__volumes:
                     if not vol.is_multivolume():
-                        raise MultiVolumeArchiveError()
+                        raise MultiVolumeArchiveError("single-volume archive")
                     if last_volume != None and vol.volume != last_volume + 1:
-                        raise MultiVolumeArchiveError()
+                        raise MultiVolumeArchiveError("volumes do not match")
                     last_volume = vol.volume
 
             # build list of members and their file segments across volumes
@@ -3211,16 +3212,16 @@ class AceArchive:
                     if len(headers) == 0:
                         if hdr.flag(Header.FLAG_CONTPREV):
                             if len(self.__members) > 0:
-                                raise MultiVolumeArchiveError()
+                                raise MultiVolumeArchiveError("incomplete file")
                             # don't raise an error if this is the first file
                             # in the first volume, to allow opening subsequent
                             # volumes of multi-volume archives separately
                             continue
                     else:
                         if not hdr.flag(Header.FLAG_CONTPREV):
-                            raise MultiVolumeArchiveError()
+                            raise MultiVolumeArchiveError("unexpected new file")
                         if hdr.filename != headers[-1].filename:
-                            raise MultiVolumeArchiveError()
+                            raise MultiVolumeArchiveError("filename mismatch")
                     headers.append(hdr)
                     segments.append(volume.file_segment_for(hdr))
                     if not hdr.flag(Header.FLAG_CONTNEXT):
@@ -3288,7 +3289,7 @@ class AceArchive:
             if am.filename == name:
                 match = am
         if match == None:
-            raise KeyError()
+            raise KeyError("no member '%s' in archive" % name)
         return match
 
     def _getmember_byidx(self, idx):
@@ -3317,7 +3318,7 @@ class AceArchive:
         elif isinstance(member, str):
             return self._getmember_byname(member)
         else:
-            raise TypeError()
+            raise TypeError("member argument has unsupported type")
 
     def getmembers(self):
         """
@@ -3458,7 +3459,7 @@ class AceArchive:
 
         # Need first volume available to read from solid multi-volume archives.
         if self.is_solid() and self.is_multivolume() and self.volume > 0:
-            raise MultiVolumeArchiveError()
+            raise MultiVolumeArchiveError("need first volume")
 
         # For solid archives, ensure the LZ77 state corresponds to the state
         # after extracting the previous file by re-starting extraction from
@@ -3471,7 +3472,7 @@ class AceArchive:
                 restart_idx = self.__next_read_idx = 0
             for i in range(restart_idx, am._idx):
                 if not self.test(i):
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("failed to restore solid state")
 
         if (not am.is_dir()) and am.size > 0:
             f = am._file
@@ -3481,7 +3482,7 @@ class AceArchive:
             # a decrypting wrapper object.
             if am.is_enc():
                 if not pwd:
-                    raise EncryptedArchiveError()
+                    raise EncryptedArchiveError("need password")
                 f = EncryptedFileIO(f, AceBlowfish(pwd))
 
             # Choose the matching decompressor based on the first header.
@@ -3492,7 +3493,8 @@ class AceArchive:
             elif am.comptype == Header.COMP_BLOCKED:
                 decompressor = self.__ace.decompress_blocked
             else:
-                raise UnknownCompressionMethodError()
+                raise UnknownCompressionMethodError(
+                        "method %i unknown" % am.comptype)
 
             # Decompress and calculate CRC over full decompressed data,
             # i.e. after decryption and across all segments that may have
@@ -3504,16 +3506,16 @@ class AceArchive:
                     yield block
             except ValueError:
                 if am.is_enc():
-                    raise EncryptedArchiveError()
+                    raise EncryptedArchiveError("wrong password or corrupted")
                 else:
-                    raise CorruptedArchiveError()
+                    raise CorruptedArchiveError("ValueError during decomp")
             except CorruptedArchiveError:
                 if am.is_enc():
-                    raise EncryptedArchiveError()
+                    raise EncryptedArchiveError("wrong password or corrupted")
                 raise
             if crc != am.crc32:
                 if am.is_enc():
-                    raise EncryptedArchiveError()
+                    raise EncryptedArchiveError("wrong password or corrupted")
                 raise CorruptedArchiveError("CRC mismatch")
 
         self.__next_read_idx += 1
@@ -3798,211 +3800,220 @@ def unace():
     else:
         archive = args.archive
 
-    with open(archive) as f:
-        if args.verbose:
-            if acebitstream == None:
-                eprint(("warning: acebitstream c extension unavailable, "
-                        "using pure-python bit stream"))
-            eprint("processing archive %s" % f.filename)
-            eprint("loaded %i volume(s) starting at volume %i" % (
-                   f.volumes_loaded, f.volume))
-            archinfo = []
-            if not f.is_locked():
-                archinfo.append('not ')
-            archinfo.append('locked, ')
-            if not f.is_multivolume():
-                archinfo.append('not ')
-            archinfo.append('multi-volume, ')
-            if not f.is_solid():
-                archinfo.append('not ')
-            archinfo.append('solid')
-            eprint("archive is", ''.join(archinfo))
-            eprint("last modified %s" % (
-                   f.datetime.strftime('%Y-%m-%d %H:%M:%S')))
-            eprint("created on %s with ACE %s for extraction with %s+" % (
-                   f.platform, f.cversion/10, f.eversion/10))
-            if f.advert:
-                eprint("advert [%s]" % f.advert)
-
-            if f.is_multivolume() and f.volume > 0:
-                eprint("warning: this is not the initial volume of this "
-                       "multi-volume archive")
-            if f.comment:
-                eprint(asciibox(f.comment, title='archive comment'))
-
-        if args.mode == 'extract':
-            if f.is_multivolume() and f.volume > 0 and f.is_solid():
-                eprint(("error: need complete set of volumes to extract from "
-                        "solid multivolume archive"))
-                sys.exit(1)
-            failed = 0
-            password = args.password
-            if args.file:
-                members = [f.getmember(m) for m in args.file]
-            else:
-                members = f.getmembers()
-            for am in members:
-                if am.is_enc() and password == None and not args.batch:
-                    try:
-                        password = getpass.getpass("%s password: " % \
-                                                    am.filename)
-                    except EOFError:
-                        password = None
-                while True:
-                    try:
-                        f.extract(am, path=args.basedir, pwd=password)
-                        if args.verbose:
-                            eprint("%s" % am.filename)
-                        break
-                    except EncryptedArchiveError:
-                        if args.verbose or args.batch or not password:
-                            eprint("%s failed to decrypt" % am.filename)
-                        if args.batch or not password:
-                            failed += 1
-                            break
-                        try:
-                            password = getpass.getpass("%s password: " % \
-                                                        am.filename)
-                        except EOFError:
-                            password = ''
-                        if password == '':
-                            password = args.password
-                            eprint("%s skipped" % am.filename)
-                            failed += 1
-                            break
-                    except AceError:
-                        eprint("%s failed to extract" % am.filename)
-                        failed += 1
-                        break
-                if f.is_solid() and failed > 0:
-                    eprint("error extracting from solid archive, aborting")
-                    sys.exit(1)
-                if args.verbose and am.comment:
-                    eprint(asciibox(am.comment, title='file comment'))
-            if failed > 0:
-                sys.exit(1)
-
-        elif args.mode == 'test':
-            if f.is_multivolume() and f.volume > 0 and f.is_solid():
-                eprint(("error: need complete set of volumes to test "
-                        "solid multivolume archive"))
-                sys.exit(1)
-            failed = 0
-            ok = 0
-            password = args.password
-            for am in f.getmembers():
-                if f.is_solid() and failed > 0:
-                    print("failure  %s" % am.filename)
-                    failed += 1
-                    continue
-                if am.is_enc() and password == None and not args.batch:
-                    try:
-                        password = getpass.getpass("%s password: " % \
-                                                    am.filename)
-                    except EOFError:
-                        password = None
-                while True:
-                    try:
-                        if f.test(am, pwd=password):
-                            print("success  %s" % am.filename)
-                            ok += 1
-                        else:
-                            print("failure  %s" % am.filename)
-                            failed += 1
-                        break
-                    except EncryptedArchiveError:
-                        if args.batch or not password:
-                            print("needpwd  %s" % am.filename)
-                            failed += 1
-                            break
-                        eprint("last used password failed")
-                        try:
-                            password = getpass.getpass("%s password: " % \
-                                                        am.filename)
-                        except EOFError:
-                            password = ''
-                        if password == '':
-                            password = args.password
-                            print("needpwd  %s" % am.filename)
-                            failed += 1
-                            break
-                if args.verbose and am.comment:
-                    eprint(asciibox(am.comment, title='file comment'))
-            eprint("total %i tested, %i ok, %i failed" % (
-                   ok + failed, ok, failed))
-            if failed > 0:
-                sys.exit(1)
-
-        elif args.mode == 'list':
+    try:
+        with open(archive) as f:
             if args.verbose:
-                eprint(("CQD FE      size     packed   rel  "
-                        "timestamp            filename"))
-                count = count_size = count_packsize = 0
-                for am in f.getmembers():
-                    if am.is_dir():
-                        ft = 'd'
-                    else:
-                        ft = 'f'
-                    if am.is_enc():
-                        en = '+'
-                    else:
-                        en = ' '
-                    if am.size > 0:
-                        ratio = (100 * am.packsize) // am.size
-                    else:
-                        ratio = 100
-                    print("%i%i%s %s%s %9i  %9i  %3i%%  %s  %s" % (
-                        am.comptype, am.compqual, hex(am.dicsizebits - 10)[2:],
-                        ft, en,
-                        am.size,
-                        am.packsize,
-                        ratio,
-                        am.datetime.strftime('%Y-%m-%d %H:%M:%S'),
-                        am.filename))
-                    if am.comment:
+                if acebitstream == None:
+                    eprint(("warning: acebitstream c extension unavailable, "
+                            "using pure-python bit stream"))
+                eprint("processing archive %s" % f.filename)
+                eprint("loaded %i volume(s) starting at volume %i" % (
+                       f.volumes_loaded, f.volume))
+                archinfo = []
+                if not f.is_locked():
+                    archinfo.append('not ')
+                archinfo.append('locked, ')
+                if not f.is_multivolume():
+                    archinfo.append('not ')
+                archinfo.append('multi-volume, ')
+                if not f.is_solid():
+                    archinfo.append('not ')
+                archinfo.append('solid')
+                eprint("archive is", ''.join(archinfo))
+                eprint("last modified %s" % (
+                       f.datetime.strftime('%Y-%m-%d %H:%M:%S')))
+                eprint("created on %s with ACE %s for extraction with %s+" % (
+                       f.platform, f.cversion/10, f.eversion/10))
+                if f.advert:
+                    eprint("advert [%s]" % f.advert)
+
+                if f.is_multivolume() and f.volume > 0:
+                    eprint("warning: this is not the initial volume of this "
+                           "multi-volume archive")
+                if f.comment:
+                    eprint(asciibox(f.comment, title='archive comment'))
+
+            if args.mode == 'extract':
+                if f.is_multivolume() and f.volume > 0 and f.is_solid():
+                    eprint(("error: need complete set of volumes to extract "
+                            "from solid multivolume archive"))
+                    sys.exit(1)
+                failed = 0
+                password = args.password
+                if args.file:
+                    members = [f.getmember(m) for m in args.file]
+                else:
+                    members = f.getmembers()
+                for am in members:
+                    if am.is_enc() and password == None and not args.batch:
+                        try:
+                            password = getpass.getpass("%s password: " % \
+                                                        am.filename)
+                        except EOFError:
+                            password = None
+                    while True:
+                        try:
+                            f.extract(am, path=args.basedir, pwd=password)
+                            if args.verbose:
+                                eprint("%s" % am.filename)
+                            break
+                        except EncryptedArchiveError:
+                            if args.verbose or args.batch or not password:
+                                eprint("%s failed to decrypt" % am.filename)
+                            if args.batch or not password:
+                                failed += 1
+                                break
+                            try:
+                                password = getpass.getpass("%s password: " % \
+                                                            am.filename)
+                            except EOFError:
+                                password = ''
+                            if password == '':
+                                password = args.password
+                                eprint("%s skipped" % am.filename)
+                                failed += 1
+                                break
+                        except AceError:
+                            eprint("%s failed to extract" % am.filename)
+                            failed += 1
+                            break
+                    if f.is_solid() and failed > 0:
+                        eprint("error extracting from solid archive, aborting")
+                        sys.exit(1)
+                    if args.verbose and am.comment:
                         eprint(asciibox(am.comment, title='file comment'))
-                    count_size += am.size
-                    count_packsize += am.packsize
-                    count += 1
-                eprint("total %i members, %i bytes, %i bytes compressed" % (
-                       count, count_size, count_packsize))
-            else:
+                if failed > 0:
+                    sys.exit(1)
+
+            elif args.mode == 'test':
+                if f.is_multivolume() and f.volume > 0 and f.is_solid():
+                    eprint(("error: need complete set of volumes to test "
+                            "solid multivolume archive"))
+                    sys.exit(1)
+                failed = 0
+                ok = 0
+                password = args.password
+                for am in f.getmembers():
+                    if f.is_solid() and failed > 0:
+                        print("failure  %s" % am.filename)
+                        failed += 1
+                        continue
+                    if am.is_enc() and password == None and not args.batch:
+                        try:
+                            password = getpass.getpass("%s password: " % \
+                                                        am.filename)
+                        except EOFError:
+                            password = None
+                    while True:
+                        try:
+                            if f.test(am, pwd=password):
+                                print("success  %s" % am.filename)
+                                ok += 1
+                            else:
+                                print("failure  %s" % am.filename)
+                                failed += 1
+                            break
+                        except EncryptedArchiveError:
+                            if args.batch or not password:
+                                print("needpwd  %s" % am.filename)
+                                failed += 1
+                                break
+                            eprint("last used password failed")
+                            try:
+                                password = getpass.getpass("%s password: " % \
+                                                            am.filename)
+                            except EOFError:
+                                password = ''
+                            if password == '':
+                                password = args.password
+                                print("needpwd  %s" % am.filename)
+                                failed += 1
+                                break
+                    if args.verbose and am.comment:
+                        eprint(asciibox(am.comment, title='file comment'))
+                eprint("total %i tested, %i ok, %i failed" % (
+                       ok + failed, ok, failed))
+                if failed > 0:
+                    sys.exit(1)
+
+            elif args.mode == 'list':
+                if args.verbose:
+                    eprint(("CQD FE      size     packed   rel  "
+                            "timestamp            filename"))
+                    count = count_size = count_packsize = 0
+                    for am in f.getmembers():
+                        if am.is_dir():
+                            ft = 'd'
+                        else:
+                            ft = 'f'
+                        if am.is_enc():
+                            en = '+'
+                        else:
+                            en = ' '
+                        if am.size > 0:
+                            ratio = (100 * am.packsize) // am.size
+                        else:
+                            ratio = 100
+                        print("%i%i%s %s%s %9i  %9i  %3i%%  %s  %s" % (
+                            am.comptype, am.compqual,
+                            hex(am.dicsizebits - 10)[2:],
+                            ft, en,
+                            am.size,
+                            am.packsize,
+                            ratio,
+                            am.datetime.strftime('%Y-%m-%d %H:%M:%S'),
+                            am.filename))
+                        if am.comment:
+                            eprint(asciibox(am.comment, title='file comment'))
+                        count_size += am.size
+                        count_packsize += am.packsize
+                        count += 1
+                    eprint("total %i members, %i bytes, %i bytes compressed" % (
+                           count, count_size, count_packsize))
+                else:
+                    for fn in f.getnames():
+                        print("%s" % fn)
+
+            elif args.mode == 'headers':
+                f.dumpheaders()
+
+            elif args.mode == 'selftest':
+                eprint('dumpheaders():')
+                f.dumpheaders()
+                eprint('-' * 78)
+                eprint('getnames():')
                 for fn in f.getnames():
-                    print("%s" % fn)
-
-        elif args.mode == 'headers':
-            f.dumpheaders()
-
-        elif args.mode == 'selftest':
-            eprint('dumpheaders():')
-            f.dumpheaders()
-            eprint('-' * 78)
-            eprint('getnames():')
-            for fn in f.getnames():
-                eprint("%s" % fn)
-            eprint('-' * 78)
-            eprint('testall():')
-            rv = f.testall()
-            if rv != None:
-                eprint("Test failed: member %s is corrupted" % rv)
-                sys.exit(1)
-            eprint('-' * 78)
-            eprint('test() in order:')
-            for member in f.getmembers():
-                if f.test(member):
-                    eprint("%s: CRC OK" % member.filename)
-                else:
-                    eprint("%s: CRC FAILED" % member.filename)
+                    eprint("%s" % fn)
+                eprint('-' * 78)
+                eprint('testall():')
+                rv = f.testall()
+                if rv != None:
+                    eprint("Test failed: member %s is corrupted" % rv)
                     sys.exit(1)
-            eprint('-' * 78)
-            eprint('test() in reverse order:')
-            for member in reversed(f.getmembers()):
-                if f.test(member):
-                    eprint("%s: CRC OK" % member.filename)
-                else:
-                    eprint("%s: CRC FAILED" % member.filename)
-                    sys.exit(1)
-        # end of with open
+                eprint('-' * 78)
+                eprint('test() in order:')
+                for member in f.getmembers():
+                    if f.test(member):
+                        eprint("%s: CRC OK" % member.filename)
+                    else:
+                        eprint("%s: CRC FAILED" % member.filename)
+                        sys.exit(1)
+                eprint('-' * 78)
+                eprint('test() in reverse order:')
+                for member in reversed(f.getmembers()):
+                    if f.test(member):
+                        eprint("%s: CRC OK" % member.filename)
+                    else:
+                        eprint("%s: CRC FAILED" % member.filename)
+                        sys.exit(1)
+            # end of with open
+
+    except AceError as e:
+        if DEBUG:
+            raise
+        eprint("%s: %s: %s" % (args.archive, type(e).__name__, e))
+        sys.exit(1)
+
     sys.exit(0)
 
 
