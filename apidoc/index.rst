@@ -186,7 +186,7 @@ in their ``FILE`` header:
     Data is stored as-is without any compression applied.
 
 **LZ77**
-    ACE 1.0 plain LZ77 compression over a Huffman-encoded symbol stream, with
+    ACE 1.0 plain LZ77 compression over a Huffman coded symbol stream, with
     configurable dictionary size of 1K..4M literals.
 
 **blocked**
@@ -195,7 +195,7 @@ in their ``FILE`` header:
     techniques.
 
     **LZ77**
-        Plain LZ77 over a Huffman-encoded symbol stream, with configurable
+        Plain LZ77 over a Huffman coded symbol stream, with configurable
         dictionary size of 1K..4M literals.
 
     **EXE**
@@ -210,12 +210,12 @@ in their ``FILE`` header:
         LZ77 compression ratio for some inputs.
 
     **SOUND**
-        Multi-channel audio predictor over Huffman-encoding, resulting in a
+        Multi-channel audio predictor over Huffman coding, resulting in a
         higher compression ratio for uncompressed mono/stereo 8/16 bit sound
         data.
 
     **PIC**
-        Two-dimensional pixel value predictor over Huffman-encoding, resulting
+        Two-dimensional pixel value predictor over Huffman coding, resulting
         in a higher compression ratio for uncompressed picture data.
 
 Solid archives use a single dictionary for the whole archive, while non-solid
@@ -224,7 +224,7 @@ parameter ranging from 0 (none) to 5 (best) influences the amount of CPU cycles
 the compressor spends to find an optimal compression; it has no influence on
 decompression.
 
-Comments are compressed using LZP over a Huffman-encoded symbol stream.  Advert
+Comments are compressed using LZP over a Huffman coded symbol stream.  Advert
 strings and other header information is uncompressed.
 
 Encryption
