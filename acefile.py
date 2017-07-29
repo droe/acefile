@@ -1690,7 +1690,7 @@ class Sound:
         def rar_adjust(self, sample):
             self.__byte_count += 1
             pred_sample = self._get_predicted_sample()
-            pred_dif = (c_char(pred_sample - sample) << 3)
+            pred_dif = c_char(pred_sample - sample) << 3
             self.__rar_dif[0] += abs(pred_dif - self.__rar_dif_cnt[0])
             self.__rar_dif[1] += abs(pred_dif + self.__rar_dif_cnt[0])
             self.__rar_dif[2] += abs(pred_dif - self.__rar_dif_cnt[1])
