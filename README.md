@@ -30,7 +30,7 @@ It is an implementation from scratch, based on the 1998 document titled
 "Technical information of the archiver ACE v1.2" by Marcel Lemke, using
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 
-For more information, API documentation, source code, packages and update
+For more information, API documentation, source code, packages and release
 notifications, refer to:
 
 - https://www.roe.ch/acefile
@@ -49,11 +49,8 @@ Python 3.  No other dependencies.
 
     pip install acefile
 
-
-## Compiled module
-
 The `acefile` package includes an optional `acebitstream` module that
-implements the acefile.BitStream class in c, resulting in a 50% speedup.
+implements the bit stream class in c, resulting in a 50% speedup.
 It is automatically used wherever it builds cleanly, but is not required.
 
 

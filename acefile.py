@@ -45,7 +45,7 @@ It is an implementation from scratch, based on the 1998 document titled
 "Technical information of the archiver ACE v1.2" by Marcel Lemke, using
 unace 2.5 and WinAce 2.69 by Marcel Lemke as reference implementations.
 
-For more information, API documentation, source code, packages and update
+For more information, API documentation, source code, packages and release
 notifications, refer to:
 
 - https://www.roe.ch/acefile
