@@ -9,7 +9,7 @@ SDIST=		dist/acefile-$(VERSION).tar.gz
 SDISTSIG=	$(SDIST:=.asc)
 APIDOC=		apidoc-acefile-$(VERSION).tar.bz2
 
-all: dist sign
+all: test dist sign apidoc
 
 apidoc:
 	$(MAKE) -C apidoc all
