@@ -138,14 +138,8 @@ def c_div(q, d):
     """
     Arbitrary signed integer division with c behaviour.
 
-    >>> c_div(10, 3)
-    3
-    >>> c_div(-10, -3)
-    3
-    >>> c_div(-10, 3)
-    -3
-    >>> c_div(10, -3)
-    -3
+    >>> (c_div(10, 3), c_div(-10, -3), c_div(-10, 3), c_div(10, -3))
+    (3, 3, -3, -3)
     >>> c_div(-11, 0)
     Traceback (most recent call last):
         ...
@@ -157,6 +151,11 @@ def c_div(q, d):
 def c_char(i):
     """
     Convert arbitrary integer to c signed char type range as if casted in c.
+
+    >>> c_char(0x12345678)
+    120
+    >>> (c_char(-128), c_char(-129), c_char(127), c_char(128))
+    (-128, 127, 127, -128)
     """
     return ((i + 128) % 256) - 128
 
@@ -166,14 +165,8 @@ def c_uchar(i):
 
     >>> c_uchar(0x12345678)
     120
-    >>> c_uchar(-123)
-    133
-    >>> c_uchar(-1)
-    255
-    >>> c_uchar(255)
-    255
-    >>> c_uchar(256)
-    0
+    >>> (c_uchar(-123), c_uchar(-1), c_uchar(255), c_uchar(256))
+    (133, 255, 255, 0)
     """
     return i & 0xFF
 
