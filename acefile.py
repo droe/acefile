@@ -148,13 +148,13 @@ def c_div(q, d):
     s = int(math.copysign(1, q) * math.copysign(1, d))
     return s * int(abs(q) / abs(d))
 
-def c_char(i):
+def c_schar(i):
     """
     Convert arbitrary integer to c signed char type range as if casted in c.
 
-    >>> c_char(0x12345678)
+    >>> c_schar(0x12345678)
     120
-    >>> (c_char(-128), c_char(-129), c_char(127), c_char(128))
+    >>> (c_schar(-128), c_schar(-129), c_schar(127), c_schar(128))
     (-128, 127, 127, -128)
     """
     return ((i + 128) % 256) - 128
@@ -1683,7 +1683,7 @@ class Sound:
         def rar_adjust(self, sample):
             self.__byte_count += 1
             pred_sample = self._get_predicted_sample()
-            pred_dif = c_char(pred_sample - sample) << 3
+            pred_dif = c_schar(pred_sample - sample) << 3
             self.__rar_dif[0] += abs(pred_dif - self.__rar_dif_cnt[0])
             self.__rar_dif[1] += abs(pred_dif + self.__rar_dif_cnt[0])
             self.__rar_dif[2] += abs(pred_dif - self.__rar_dif_cnt[1])
@@ -1694,7 +1694,7 @@ class Sound:
             self.__rar_dif[7] += abs(pred_dif + self.__rar_dif_cnt[3])
             self.__rar_dif[8] += abs(pred_dif)
 
-            self.__last_delta = c_char(sample - self.__last_sample)
+            self.__last_delta = c_schar(sample - self.__last_sample)
             self.__pred_dif_cnt[0] += self._quantizer[pred_dif >> 3]
             self.__pred_dif_cnt[1] += self._quantizer[self.__last_sample-sample]
             self.__last_sample = sample
@@ -1775,7 +1775,7 @@ class Sound:
                 break
             sample = c_uchar(value + self.__channels[channel].rar_predict())
             chunk.append(sample)
-            self.__channels[channel].rar_adjust(c_char(sample))
+            self.__channels[channel].rar_adjust(c_schar(sample))
         return (chunk, next_mode)
 
 
