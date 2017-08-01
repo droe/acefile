@@ -1,3 +1,6 @@
+### acefile 0.6.6-dev
+
+
 ### acefile 0.6.5 2017-08-01
 
 -   Remove ACE 2.0 PIC mode width multiple of planes restriction (issue #6).
