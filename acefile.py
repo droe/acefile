@@ -2002,6 +2002,8 @@ class Pic:
         # Some indices into row and self.__prevrow are outside of the
         # expected range 0..width, as indicated below.  Additionally, when
         # processing the first row, self.__prevrow is all zeroes.
+        # Furthermore, self.__width is not necessarily a multiple of
+        # self.__planes.
         row = [0] * (self.__width + self.__planes)
         for plane in range(self.__planes):
             if plane == 0:
