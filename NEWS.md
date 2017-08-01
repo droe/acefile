@@ -1,7 +1,9 @@
 ### acefile 0.6.5-dev
 
+-   Remove ACE 2.0 PIC mode width multiple of planes restriction (issue #6).
 -   Improve exception messages and CLI exception handling.
 -   Add SIGINFO handler to CLI on platforms that support it.
+-   Add 270 additional ACE archives to corpus of test archives.
 
 
 ### acefile 0.6.4 2017-07-26
