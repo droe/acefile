@@ -3893,7 +3893,7 @@ def unace():
                 failed = 0
                 ok = 0
                 password = args.password
-                for am in f.getmembers():
+                for am in f:
                     if f.is_solid() and failed > 0:
                         print("failure  %s" % am.filename)
                         failed += 1
@@ -3941,7 +3941,7 @@ def unace():
                     eprint(("CQD FE      size     packed   rel  "
                             "timestamp            filename"))
                     count = count_size = count_packsize = 0
-                    for am in f.getmembers():
+                    for am in f:
                         if am.is_dir():
                             ft = 'd'
                         else:
@@ -3992,7 +3992,7 @@ def unace():
                     sys.exit(1)
                 eprint('-' * 78)
                 eprint('test() in order:')
-                for member in f.getmembers():
+                for member in f:
                     if f.test(member):
                         eprint("%s: CRC OK" % member.filename)
                     else:
