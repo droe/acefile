@@ -1985,11 +1985,10 @@ class Pic:
         Reinitialize the PIC decompression engine.
         Read width and planes from BitStream *bs* and reset all data dependent
         state to initial values.
+        Note that width does not need to be a multiple of planes.
         """
         self.__width = bs.read_golomb_rice(12)
         self.__planes = bs.read_golomb_rice(2)
-        if self.__width % self.__planes > 0:
-            raise CorruptedArchiveError("width not a multiple of planes")
         self.__errmodel_plane0    = self.ErrModel()
         self.__errmodel_plane1toN = self.ErrModel()
         self.__prevrow = [0] * (self.__width + self.__planes)
