@@ -3736,6 +3736,23 @@ __all__.extend(filter(lambda name: name.endswith('Error'),
 def unace():
     import argparse
     import getpass
+    import signal
+
+    class Status:
+        def __init__(self, argv0, action, archive):
+            self.argv0 = os.path.basename(argv0)
+            self.action = action + 'ing'
+            self.archive = os.path.basename(archive)
+            self.member = ''
+
+        def __str__(self):
+            return "%s: %s %s %s" % (self.argv0, self.action,
+                                     self.archive, self.member)
+
+    status = None
+
+    def siginfo_handler(signum, frame):
+        eprint(status)
 
     parser = argparse.ArgumentParser(description="""
             Read/test/extract ACE 1.0 and 2.0 archives in pure python
@@ -3792,6 +3809,10 @@ def unace():
         global DEBUG
         DEBUG = True
 
+    if hasattr(signal, 'SIGINFO'):
+        signal.signal(signal.SIGINFO, siginfo_handler)
+        status = Status(sys.argv[0], args.mode, args.archive)
+
     if args.archive == '-':
         if sys.stdin.seekable():
             archive = sys.stdin
@@ -3845,6 +3866,8 @@ def unace():
                 else:
                     members = f.getmembers()
                 for am in members:
+                    if status:
+                        status.member = am.filename
                     if am.is_enc() and password == None and not args.batch:
                         try:
                             password = getpass.getpass("%s password: " % \
@@ -3894,6 +3917,8 @@ def unace():
                 ok = 0
                 password = args.password
                 for am in f:
+                    if status:
+                        status.member = am.filename
                     if f.is_solid() and failed > 0:
                         print("failure  %s" % am.filename)
                         failed += 1

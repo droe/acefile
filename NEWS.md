@@ -1,6 +1,7 @@
 ### acefile 0.6.5-dev
 
 -   Improve exception messages and CLI exception handling.
+-   Add SIGINFO handler to CLI on platforms that support it.
 
 
 ### acefile 0.6.4 2017-07-26
