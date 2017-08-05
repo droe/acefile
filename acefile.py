@@ -3378,6 +3378,8 @@ class AceArchive:
             with builtins.open(fn, 'wb') as f:
                 for buf in self.readblocks(am, pwd=pwd):
                     f.write(buf)
+            ts = am.datetime.timestamp()
+            os.utime(fn, (ts, ts))
 
     def extractall(self, *, path=None, members=None, pwd=None):
         """
