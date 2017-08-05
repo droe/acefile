@@ -3349,7 +3349,6 @@ class AceArchive:
         encrypted.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
-        Returns the normalized path created (a directory or new file).
 
         .. note::
 
