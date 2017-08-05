@@ -1,6 +1,6 @@
-### acefile 0.6.6-dev
+### acefile 0.6.6 2017-08-05
 
--   Restore mtime and atime on files on extraction (issue #7).
+-   Restore mtime and atime on extraction of files (issue #7).
 -   Add -V --version arguments to CLI (issue #8).
 
 
