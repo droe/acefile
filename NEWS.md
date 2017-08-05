@@ -1,5 +1,7 @@
 ### acefile 0.6.6-dev
 
+-   Add -V --version arguments to CLI (issue #8).
+
 
 ### acefile 0.6.5 2017-08-01
 

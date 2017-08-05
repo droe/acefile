@@ -3764,6 +3764,10 @@ def unace():
     parser.add_argument('file', nargs='*', type=str,
             help='file(s) in archive to operate on, default all')
 
+    parser.add_argument('-V', '--version', action='version',
+            version='acefile %s' % __version__,
+            help='show version and exit')
+
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--extract', '-x', default='extract',
             action='store_const', dest='mode', const='extract',
