@@ -3342,7 +3342,8 @@ class AceArchive:
 
     def extract(self, member, *, path=None, pwd=None):
         """
-        Extract an archive member to *path* or the current working directory.
+        Extract an archive member to *path* or the current working directory,
+        restoring mtime and atime for non-directory members.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
         Password *pwd* is used to decrypt the archive member if it is
