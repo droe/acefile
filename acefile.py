@@ -3340,16 +3340,16 @@ class AceArchive:
         """
         return [am.filename for am in self.getmembers()]
 
-    def extract(self, member, *, path=None, pwd=None):
+    def extract(self, member, *, path=None, pwd=None, restore=False):
         """
-        Extract an archive member to *path* or the current working directory,
-        restoring mtime and atime for non-directory members.
+        Extract an archive member to *path* or the current working directory.
         *Member* can refer to an :class:`AceMember` object, a member name or
         an index into the archive member list.
         Password *pwd* is used to decrypt the archive member if it is
         encrypted.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
+        Iff *restore* is True, restore mtime and atime for non-dir members.
 
         .. note::
 
@@ -3379,10 +3379,11 @@ class AceArchive:
             with builtins.open(fn, 'wb') as f:
                 for buf in self.readblocks(am, pwd=pwd):
                     f.write(buf)
-            ts = am.datetime.timestamp()
-            os.utime(fn, (ts, ts))
+            if restore:
+                ts = am.datetime.timestamp()
+                os.utime(fn, (ts, ts))
 
-    def extractall(self, *, path=None, members=None, pwd=None):
+    def extractall(self, *, path=None, members=None, pwd=None, restore=False):
         """
         Extract *members* or all members from archive to *path* or the current
         working directory.
@@ -3393,6 +3394,7 @@ class AceArchive:
         archive members, you must use :meth:`AceArchive.extract` instead.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
+        Iff *restore* is True, restore mtime and atime for non-dir members.
         """
         if members == None or members == []:
             members = self.getmembers()
@@ -3407,7 +3409,7 @@ class AceArchive:
                         sorted_members.append(member)
                 members = sorted_members
         for am in members:
-            self.extract(am, path=path, pwd=pwd)
+            self.extract(am, path=path, pwd=pwd, restore=restore)
 
     def read(self, member, *, pwd=None):
         """
@@ -3791,6 +3793,8 @@ def unace():
             help='base directory for extraction')
     parser.add_argument('-p', '--password', type=str, metavar='X',
             help='password for decryption')
+    parser.add_argument('-r', '--restore', action='store_true',
+            help='restore mtime/atime on extraction')
     parser.add_argument('-b', '--batch', action='store_true',
             help='suppress all interactive input')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -3883,7 +3887,9 @@ def unace():
                             password = None
                     while True:
                         try:
-                            f.extract(am, path=args.basedir, pwd=password)
+                            f.extract(am, path=args.basedir,
+                                          pwd=password,
+                                          restore=args.restore)
                             if args.verbose:
                                 eprint("%s" % am.filename)
                             break
