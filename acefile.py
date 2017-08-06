@@ -3401,7 +3401,9 @@ class AceArchive:
         encrypted.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
-        Iff *restore* is True, restore mtime and atime for non-dir members.
+        Iff *restore* is True, restore mtime and atime for non-dir members,
+        file attributes and NT security information as far as supported by
+        the platform.
 
         .. note::
 
@@ -3455,7 +3457,9 @@ class AceArchive:
         archive members, you must use :meth:`AceArchive.extract` instead.
         Raises :class:`EncryptedArchiveError` if an archive member is
         encrypted but no password was provided.
-        Iff *restore* is True, restore mtime and atime for non-dir members.
+        Iff *restore* is True, restore mtime and atime for non-dir members,
+        file attributes and NT security information as far as supported by
+        the platform.
         """
         if members == None or members == []:
             members = self.getmembers()
