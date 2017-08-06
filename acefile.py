@@ -3743,6 +3743,9 @@ def unace():
     import getpass
     import signal
 
+    def title(docstr):
+        return docstr.strip().split('\n', 1)[0]
+
     class Status:
         def __init__(self, argv0, action, archive):
             self.argv0 = os.path.basename(argv0)
@@ -3759,9 +3762,7 @@ def unace():
     def siginfo_handler(signum, frame):
         eprint(status)
 
-    parser = argparse.ArgumentParser(description="""
-            Read/test/extract ACE 1.0 and 2.0 archives in pure python
-            """)
+    parser = argparse.ArgumentParser(description=title(__doc__))
 
     parser.add_argument('archive', type=str,
             help='archive to read from')
