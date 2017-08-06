@@ -66,8 +66,8 @@ Walk all files in the archive and test each one of them:
 
     import acefile
     with acefile.open('example.ace') as f:
-        for member in f.getmembers():
-            if f.is_dir():
+        for member in f:
+            if member.is_dir():
                 continue
             if f.test(member):
                 print("CRC OK:     %s" % member.filename)
