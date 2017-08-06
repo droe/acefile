@@ -2755,7 +2755,8 @@ class AceMember:
     @property
     def attribs(self):
         """
-        DOS/Windows file attribute bit field, as :class:`int`.
+        DOS/Windows file attribute bit field, as :class:`int`,
+        as produced by the Windows :func:`GetFileAttributes` API.
         """
         return self.__attribs
 
