@@ -67,11 +67,14 @@ __url__         = 'https://www.roe.ch/acefile'
 
 import array
 import builtins
+import ctypes
 import datetime
 import io
 import math
 import os
+import platform
 import re
+import stat
 import struct
 import sys
 import zlib
@@ -94,6 +97,30 @@ DEBUG = False
 # have no obvious natural block size.
 FILE_BLOCKSIZE = 131072
 assert FILE_BLOCKSIZE % 4 == 0
+
+
+
+if platform.system() == 'Windows':
+    # BOOL WINAPI SetFileAttributes(
+    #   _In_ LPCTSTR lpFileName,
+    #   _In_ DWORD   dwFileAttributes
+    # );
+    try:
+        SetFileAttributes = ctypes.windll.kernel32.SetFileAttributesW
+    except:
+        SetFileAttributes = None
+    # BOOL WINAPI SetFileSecurity(
+    #  _In_ LPCTSTR              lpFileName,
+    #  _In_ SECURITY_INFORMATION SecurityInformation,
+    #  _In_ PSECURITY_DESCRIPTOR pSecurityDescriptor
+    # );
+    try:
+        SetFileSecurity = ctypes.windll.advapi32.SetFileSecurityW
+    except:
+        SetFileSecurity = None
+else:
+    SetFileAttributes = None
+    SetFileSecurity = None
 
 
 
@@ -2524,6 +2551,7 @@ class FileHeader(Header):
         self.reserved1  = None      # uint16
         self.filename   = None      # [uint16]
         self.comment    = b''       # [uint16]  optional, compressed
+        self.ntsecurity = b''       # [uint16]  optional
         self.reserved2  = None      # ?
         self.dataoffset = None      #           position of data after hdr
 
@@ -2540,6 +2568,7 @@ class FileHeader(Header):
     reserved1   0x%04x
     filename    %r
     comment     %r
+    ntsecurity  %r
     reserved2   %r""" % (
                 self.packsize,
                 self.origsize,
@@ -2553,6 +2582,7 @@ class FileHeader(Header):
                 self.reserved1,
                 self.filename,
                 self.comment,
+                self.ntsecurity,
                 self.reserved2)
 
     def attrib(self, attrib):
@@ -2697,6 +2727,7 @@ class AceMember:
         self.__dicsize      = 1 << self.__dicsizebits
         self.__raw_filename = filehdrs[0].filename
         self.__filename     = self._sanitize_filename(filehdrs[0].filename)
+        self.__ntsecurity   = filehdrs[0].ntsecurity
         self.__size         = filehdrs[0].origsize
         self.__packsize     = 0
         for hdr in filehdrs:
@@ -2798,6 +2829,18 @@ class AceMember:
         operations on the current platform.
         """
         return self.__filename
+
+    @property
+    def ntsecurity(self):
+        """
+        NT security descriptor as bytes, describing the owner, primary group
+        and the discretionary access control list (DACL) of the archive member,
+        as produced by the Windows :func:`GetFileSecurity` API with the
+        :data:`OWNER_SECURITY_INFORMATION`,
+        :data:`GROUP_SECURITY_INFORMATION` and
+        :data:`DACL_SECURITY_INFORMATION` flags set.
+        """
+        return self.__ntsecurity
 
     @property
     def packsize(self):
@@ -3059,6 +3102,15 @@ class AceVolume:
                     raise CorruptedArchiveError("truncated header")
                 header.comment = ACE.decompress_comment(buf[i:i+cmsz])
                 i += cmsz
+            if header.flag(Header.FLAG_NTSECURITY):
+                if i + 2 > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                nssz, = struct.unpack('<H', buf[i:i+2])
+                i += 2
+                if i + nssz > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                header.ntsecurity = buf[i:i+nssz]
+                i += nssz
             header.reserved2 = buf[i:]
             header.dataoffset = self.__file.tell()
             self.__file_headers.append(header)
@@ -3379,7 +3431,16 @@ class AceArchive:
             with builtins.open(fn, 'wb') as f:
                 for buf in self.readblocks(am, pwd=pwd):
                     f.write(buf)
-            if restore:
+        if restore:
+            if SetFileAttributes:
+                SetFileAttributes(fn, am.attribs)
+            elif am.attribs & Header.ATTR_READONLY != 0:
+                mode = stat.S_IMODE(os.lstat(fn).st_mode)
+                all_w = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
+                os.chmod(fn, mode & ~all_w)
+            if SetFileSecurity and am.ntsecurity:
+                SetFileSecurity(fn, 0x7, am.ntsecurity)
+            if not am.is_dir():
                 ts = am.datetime.timestamp()
                 os.utime(fn, (ts, ts))
 
@@ -3795,7 +3856,7 @@ def unace():
     parser.add_argument('-p', '--password', type=str, metavar='X',
             help='password for decryption')
     parser.add_argument('-r', '--restore', action='store_true',
-            help='restore mtime/atime on extraction')
+            help='restore mtime/atime, attribs and ntsecurity on extraction')
     parser.add_argument('-b', '--batch', action='store_true',
             help='suppress all interactive input')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -3977,7 +4038,7 @@ def unace():
 
             elif args.mode == 'list':
                 if args.verbose:
-                    eprint(("CQD FE      size     packed   rel  "
+                    eprint(("CQD FES      size     packed   rel  "
                             "timestamp            filename"))
                     count = count_size = count_packsize = 0
                     for am in f:
@@ -3989,14 +4050,18 @@ def unace():
                             en = '+'
                         else:
                             en = ' '
+                        if am.ntsecurity:
+                            ns = 's'
+                        else:
+                            ns = ' '
                         if am.size > 0:
                             ratio = (100 * am.packsize) // am.size
                         else:
                             ratio = 100
-                        print("%i%i%s %s%s %9i  %9i  %3i%%  %s  %s" % (
+                        print("%i%i%s %s%s%s %9i  %9i  %3i%%  %s  %s" % (
                             am.comptype, am.compqual,
                             hex(am.dicsizebits - 10)[2:],
-                            ft, en,
+                            ft, en, ns,
                             am.size,
                             am.packsize,
                             ratio,

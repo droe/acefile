@@ -2,6 +2,9 @@
 
 -   Make restoration of mtime/atime on extraction optional, default off, and
     add -r --restore arguments to CLI.
+-   Parse NT security information from FILE headers when present and optionally
+    restore file attributes and NT security information on extraction as far as
+    the platform supports it (issue #4).
 
 
 ### acefile 0.6.6 2017-08-05
