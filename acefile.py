@@ -2763,6 +2763,7 @@ class AceMember:
     def comment(self):
         """
         File-level comment, as :class:`str`.
+        If absent, empty :class:`str`.
         """
         return self.__comment
 
@@ -2833,12 +2834,13 @@ class AceMember:
     @property
     def ntsecurity(self):
         """
-        NT security descriptor as bytes, describing the owner, primary group
-        and the discretionary access control list (DACL) of the archive member,
-        as produced by the Windows :func:`GetFileSecurity` API with the
+        NT security descriptor as :class:`bytes`, describing the owner, primary
+        group and discretionary access control list (DACL) of the archive
+        member, as produced by the Windows :func:`GetFileSecurity` API with the
         :data:`OWNER_SECURITY_INFORMATION`,
         :data:`GROUP_SECURITY_INFORMATION` and
         :data:`DACL_SECURITY_INFORMATION` flags set.
+        If absent, empty :class:`bytes`.
         """
         return self.__ntsecurity
 
@@ -3677,17 +3679,19 @@ class AceArchive:
     @property
     def advert(self):
         """
-        ACE archive advert string.
+        ACE archive advert string as :class:`str`.
         Unregistered versions of ACE compressors communicate that they are
         unregistered by including an advert string of
         ``*UNREGISTERED VERSION*`` in archives they create.
+        If absent, empty :class:`str`.
         """
         return self.__volumes[0].advert
 
     @property
     def comment(self):
         """
-        ACE archive level comment.
+        ACE archive level comment as :class:`str`.
+        If absent, empty :class:`str`.
         """
         return self.__volumes[0].comment
 
