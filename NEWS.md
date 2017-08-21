@@ -1,4 +1,4 @@
-### acefile 0.6.7-dev
+### acefile 0.6.7 2017-08-21
 
 -   Make restoration of mtime/atime on extraction optional, default off, and
     add -r --restore arguments to CLI.
