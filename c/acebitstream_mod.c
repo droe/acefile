@@ -71,14 +71,16 @@ filelike_read(void *ctx, char *buf, size_t n)
 		return 0;
 	}
 #if BIG_ENDIAN_SWAP
-	for (size_t i = 0; i < ret; i += 4) {
+	size_t i;
+	for (i = 0; i < ret; i += 4) {
 		buf[i]   = p[i+3];
 		buf[i+1] = p[i+2];
 		buf[i+2] = p[i+1];
 		buf[i+3] = p[i];
 	}
 #else /* LITTLE_ENDIAN_SWAP */
-	for (size_t i = 0; i < ret; i++) {
+	size_t i;
+	for (i = 0; i < ret; i++) {
 		buf[i] = p[i];
 	}
 #endif
