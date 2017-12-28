@@ -1041,8 +1041,8 @@ class BitStream:
         """
         Skip *bits* bits in the stream.
         Raise EOFError when skipping beyond the end of the input file data.
-        The pure-python implementation supports skipping arbirarily many *bits*
-        while the c implementation is limited to a maximum of 31.
+        The pure-python implementation supports skipping arbitrarily many
+        *bits* while the c implementation is limited to a maximum of 31.
         """
         if self.__pos + bits > self.__len:
             self._refill()
@@ -1053,8 +1053,8 @@ class BitStream:
         Peek at next *bits* bits in the stream without incrementing position.
         A maximum of 31 bits beyond the end of the input file data are
         guaranteed to be peekable; these bits are always unset.
-        The pure-python implementation supports peeking arbirarily many *bits*
-        while the c implementation is limited to a maximum of 31.
+        The pure-python implementation supports peeking arbitrarily many
+        *bits* while the c implementation is limited to a maximum of 31.
         """
         if self.__pos + bits > self.__len:
             try:
@@ -1081,8 +1081,8 @@ class BitStream:
     def read_bits(self, bits):
         """
         Read *bits* bits from bitstream and increment position accordingly.
-        The pure-python implementation supports reading arbirarily many *bits*
-        while the c implementation is limited to a maximum of 31.
+        The pure-python implementation supports reading arbitrarily many
+        *bits* while the c implementation is limited to a maximum of 31.
         """
         value = self.peek_bits(bits)
         self.skip_bits(bits)
