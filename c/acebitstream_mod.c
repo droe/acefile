@@ -41,7 +41,7 @@
 static size_t
 filelike_read(void *ctx, char *buf, size_t n)
 {
-	size_t ret;
+	size_t ret, i;
 	char *p;
 	PyObject *arglist;
 	PyObject *method;
@@ -71,7 +71,6 @@ filelike_read(void *ctx, char *buf, size_t n)
 		return 0;
 	}
 #if BIG_ENDIAN_SWAP
-	size_t i;
 	for (i = 0; i < ret; i += 4) {
 		buf[i]   = p[i+3];
 		buf[i+1] = p[i+2];
@@ -79,7 +78,6 @@ filelike_read(void *ctx, char *buf, size_t n)
 		buf[i+3] = p[i];
 	}
 #else /* LITTLE_ENDIAN_SWAP */
-	size_t i;
 	for (i = 0; i < ret; i++) {
 		buf[i] = p[i];
 	}
