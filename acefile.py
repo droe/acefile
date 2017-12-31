@@ -235,8 +235,10 @@ def c_sum32(*args):
 def asciibox(msg, title=None, minwidth=None):
     """
     Returns message string *msg* wrapped in a plain ASCII box.
-    If *width* is given, pad the lines to *width* characters.
     If *title* is given, add *title* in the top horizontal bar.
+    Lines will be padded to the longest out of *minwidth* characters, the
+    length of the longest line, or the length of the title plus six.
+    Caller is responsible for ensuring a sensible line length in *msg*.
     """
     out = []
     lines = msg.splitlines()
