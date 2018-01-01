@@ -1,4 +1,4 @@
-### acefile 0.6.8-dev
+### acefile 0.6.8 2018-01-01
 
 -   Fix build of c extension on platforms without C99 support enabled by
     default (pull req #12, @joesecurity).

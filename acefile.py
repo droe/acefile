@@ -55,7 +55,7 @@ notifications, refer to:
 - https://twitter.com/droethlisberger
 """
 
-__version__     = '0.6.8-dev'
+__version__     = '0.6.8'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017-2018, Daniel Roethlisberger'
