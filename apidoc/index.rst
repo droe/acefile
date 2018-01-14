@@ -218,6 +218,10 @@ in their ``FILE`` header:
         Two-dimensional pixel value predictor over Huffman coding, resulting
         in a higher compression ratio for uncompressed picture data.
 
+    Blocks are of variable length.  Mode switch instructions are encoded into
+    each mode's Huffman symbol stream as a mode switch symbol followed by the
+    target mode identifier and parameters.
+
 Solid archives use a single dictionary for the whole archive, while non-solid
 archives use a separate dictionary per archive member.  The compression quality
 parameter ranging from 0 (none) to 5 (best) influences the amount of CPU cycles
@@ -234,9 +238,9 @@ Optional encryption is applied to the compressed data stream after compression.
 The user-supplied password of up to 50 characters is transformed into a 160 bit
 Blowfish encryption key using a single application of SHA-1, using non-standard
 block padding.  Blowfish is applied in CBC mode using a constant zero IV to
-each archive member separately.  Each archive member can have a different
-password, but in practice most encrypted archives use a single password for all
-members.  There is no password verifier in the file format; the only way to
-verify a password is to decrypt and decompress the archive member and check the
-CRC.
+each archive member separately (a cryptographical design flaw).  Each archive
+member can have a different password, but in practice most encrypted archives
+use a single password for all members.  There is no password verifier in the
+file format; the only way to verify a password is to decrypt and decompress the
+archive member and check the CRC.
 
