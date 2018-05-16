@@ -2679,10 +2679,46 @@ class AceMember:
     returned by :meth:`AceArchive.getmember` and :meth:`AceArchive.getmembers`.
     """
 
+    # https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247
+    if platform.system() == 'Windows':
+        RESERVED_NAMES = ('CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3',
+                           'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9',
+                           'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6',
+                           'LPT7', 'LPT8', 'LPT9')
+    else:
+        RESERVED_NAMES = ()
+
+    RESERVED_CHARS = ':<>"?*|' + ''.join([chr(x) for x in range(1,32)])
+    TRANSLATION_TAB = str.maketrans(dict.fromkeys(RESERVED_CHARS))
+
     @staticmethod
     def _sanitize_filename(filename):
         """
         Decode and sanitize filename for security and platform independence.
+        Returns either a sanitized relative path, or an empty string.
+
+        >>> AceMember._sanitize_filename(b'a.exe\\0b.txt')
+        'a.exe'
+        >>> AceMember._sanitize_filename(b'\\\\etc\\\\foo/bar\\\\baz.txt')
+        'etc/foo/bar/baz.txt'
+        >>> AceMember._sanitize_filename(b'a/b/../b/.//.././c/.//../d/file.txt')
+        'a/d/file.txt'
+        >>> AceMember._sanitize_filename(b'/etc/passwd')
+        'etc/passwd'
+        >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/passwd')
+        'etc/passwd'
+        >>> AceMember._sanitize_filename(b'C:\\\\Windows\\\\foo.exe')
+        'C/Windows/foo.exe'
+        >>> AceMember._sanitize_filename(b'\\\\\\\\server\\\\share\\\\file')
+        'server/share/file'
+        >>> AceMember._sanitize_filename(b'\\\\\\\\.\\\\CdRom0')
+        'CdRom0'
+        >>> AceMember._sanitize_filename(b'\\\\\\\\?\\\\raw\\\\path')
+        'raw/path'
+        >>> AceMember._sanitize_filename(b'hello\x05world')
+        'helloworld'
+        >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/../')
+        ''
         """
         filename = filename.decode('utf-8', errors='replace')
         # treat null byte as filename terminator
@@ -2695,12 +2731,7 @@ class AceMember:
         elif os.sep != '\\':
             filename = filename.replace('\\', os.sep)
         # eliminate characters illegal on some platforms
-        filename = filename.replace(':', '_')
-        filename = filename.replace('<', '_')
-        filename = filename.replace('>', '_')
-        filename = filename.replace('"', '_')
-        filename = filename.replace('?', '_')
-        filename = filename.replace('*', '_')
+        filename = filename.translate(AceMember.TRANSLATION_TAB)
         # first eliminate all /./, foo/../ and similar sequences, then remove
         # all remaining .. labels in order to avoid path traversal attacks but
         # still allow a safe subset of dot syntax in the filename
@@ -2708,6 +2739,9 @@ class AceMember:
         escsep = re.escape(os.sep)
         pattern = r'(^|%s)(?:\.\.(?:%s|$))+' % (escsep, escsep)
         filename = re.sub(pattern, r'\1', filename)
+        filename = filename.lstrip(os.sep)
+        if filename in AceMember.RESERVED_NAMES:
+            return '_' + filename
         return filename
 
     def __init__(self, idx, filehdrs, f):
@@ -2729,6 +2763,8 @@ class AceMember:
         self.__dicsize      = 1 << self.__dicsizebits
         self.__raw_filename = filehdrs[0].filename
         self.__filename     = self._sanitize_filename(filehdrs[0].filename)
+        if self.__filename == '':
+            self.__filename = 'file%04i' % self._idx
         self.__ntsecurity   = filehdrs[0].ntsecurity
         self.__size         = filehdrs[0].origsize
         self.__packsize     = 0
