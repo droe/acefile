@@ -34,7 +34,7 @@ def run_setup(with_optional_extensions):
         platforms=['all'],
         classifiers=[
             # https://pypi.python.org/pypi?%3Aaction=list_classifiers
-            'Development Status :: 4 - Beta',
+            'Development Status :: 5 - Production/Stable',
             'License :: OSI Approved :: BSD License',
             'Operating System :: OS Independent',
             'Programming Language :: Python :: 3',
@@ -42,6 +42,7 @@ def run_setup(with_optional_extensions):
             'Programming Language :: Python :: 3.4',
             'Programming Language :: Python :: 3.5',
             'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: 3.7',
             'Topic :: System :: Archiving :: Compression',
         ],
         keywords=['ace', 'unace', 'compression', 'decompression', 'archive'],
