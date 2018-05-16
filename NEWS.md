@@ -1,4 +1,4 @@
-### acefile 0.6.9-dev
+### acefile 0.6.9 2018-05-16
 
 -   Substantially improve filename sanitization to avoid absolute path
     overwrites, filenames containing reserved characters or matching reserved
