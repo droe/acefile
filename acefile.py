@@ -3934,7 +3934,7 @@ def unace():
         status = Status(sys.argv[0], args.mode, args.archive)
 
     if args.archive == '-':
-        if sys.stdin.buffer.seekable():
+        if sys.stdin.buffer.seekable() and platform.system() != 'Windows':
             archive = sys.stdin.buffer
         else:
             archive = io.BytesIO(sys.stdin.buffer.read())
