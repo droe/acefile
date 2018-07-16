@@ -1,4 +1,4 @@
-### acefile 0.6.10-dev
+### acefile 0.6.10 2018-07-16
 
 -   Fix reading archives from stdin in CLI on Windows.
 
