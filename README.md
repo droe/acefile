@@ -93,7 +93,8 @@ reading them into memory:
             for block in fi.readblocks('large.iso'):
                 fo.write(block)
 
-Check the API documentation for a complete description of the API.
+Check the [API documentation](https://apidoc.roe.ch/acefile) for a complete
+description of the API.
 
 
 ## Utility usage examples
