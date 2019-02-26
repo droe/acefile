@@ -2719,6 +2719,8 @@ class AceMember:
         'helloworld'
         >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/../')
         ''
+        >>> AceMember._sanitize_filename(b'c:\\c:\\CVE-2018-20250\\poc.lnk')
+        'c/c/CVE-2018-20250/poc.lnk'
         """
         filename = filename.decode('utf-8', errors='replace')
         # treat null byte as filename terminator
