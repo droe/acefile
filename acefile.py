@@ -2728,7 +2728,7 @@ class AceMember:
         # ensure path separators are consistent with current platform
         if os.sep != '/':
             filename = filename.replace('/', os.sep)
-        elif os.sep != '\\':
+        if os.sep != '\\':
             filename = filename.replace('\\', os.sep)
         # eliminate characters illegal on some platforms
         filename = filename.translate(AceMember.TRANSLATION_TAB)
