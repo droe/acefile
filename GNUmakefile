@@ -1,7 +1,7 @@
 PYTHON?=	python3
 TWINE?=		twine
 GPG?=		gpg2
-GPGSIGNKEY?=	0xB5D3397E
+GPGSIGNKEY?=	0xE1520675375F5E35
 
 VERSION:=$(shell $(PYTHON) -c 'import acefile; print(acefile.__version__)')
 
