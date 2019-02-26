@@ -1,4 +1,8 @@
-### acefile 0.6.11-dev
+### acefile 0.6.11 2019-02-26
+
+-   Add unit test for WinRAR/unacev2.dll vulnerability CVE-2018-20250 to
+    ensure and verify that acefile is not vulnerable.
+-   Migrate to new PGP key 0xE1520675375F5E35 for release signing.
 
 
 ### acefile 0.6.10 2018-07-16
