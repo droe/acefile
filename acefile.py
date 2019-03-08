@@ -1187,7 +1187,13 @@ class Huffman:
             symbol and its width, and finally skipping the actual width of
             the code for the symbol in the bit stream.
             """
-            symbol = self.codes[bs.peek_bits(self.max_width)]
+            maxwidth_code = bs.peek_bits(self.max_width)
+            if maxwidth_code >= len(self.codes):
+                # Not sure if we could prevent this from happening on malformed
+                # input by improving how we choose max_width and codes; so far
+                # only happens on malformed input.
+                raise CorruptedArchiveError("maxwidth_code > len(codes)")
+            symbol = self.codes[maxwidth_code]
             bs.skip_bits(self.widths[symbol])
             return symbol
 
