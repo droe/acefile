@@ -3,6 +3,8 @@
 -   Fix an IndexError exception while decompressing corrupt archives, that also
     manifested for some encrypted ACE archives when using a wrong password
     (bug reported by Jonathan Leonard).
+-   Parse all variants of recovery headers for dumping and diagnostics, but
+    still ignore the actual recovery data (issue #11).
 
 
 ### acefile 0.6.11 2019-02-26

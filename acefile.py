@@ -2616,6 +2616,49 @@ class FileHeader(Header):
 
 
 
+class RecoveryHeader(Header):
+    def __init__(self, *args):
+        super().__init__(*args)
+                                    # R32    R64A   R64B
+        self.rcvrsize       = None  # uint32 uint64 uint64  recovery data size
+        self.magic          = None  # uint8[7]              **ACE**
+        self.relstart       = None  # uint32 uint64 uint64  ?
+        self.cluster        = None  # uint32 uint32 -       ?
+        self.sectors        = None  # -      -      uint16  ?
+        self.spc            = None  # -      -      uint16  ?
+        self.clustersize    = None  # uint32 uint32 uint32  ?
+        self.rcvrcrc        = None  # uint16 uint16 -       recovery data crc
+
+    def __str__(self):
+        segments = [super().__str__()]
+        segments.append("""
+    rcvrsize    %i
+    magic       %r
+    relstart    %i""" % (
+                self.rcvrsize,
+                self.magic,
+                self.relstart))
+        if self.hdr_type in (Header.TYPE_RECOVERY32,
+                             Header.TYPE_RECOVERY64A):
+            segments.append("""
+    cluster     %i
+    clustersize %i
+    rcvrcrc     0x%02x""" % (
+                self.cluster,
+                self.clustersize,
+                self.rcvrcrc))
+        elif self.hdr_type == Header.TYPE_RECOVERY64B:
+            segments.append("""
+    sectors     %i
+    spc         %i
+    clustersize %i""" % (
+                self.sectors,
+                self.spc,
+                self.clustersize))
+        return ''.join(segments)
+
+
+
 class AceError(Exception):
     """
     Base class for all :mod:`acefile` exceptions.
@@ -2936,6 +2979,7 @@ class AceVolume:
         self.__filesize = self.__file.tell()
         self.__main_header = None
         self.__file_headers = []
+        self.__recovery_headers = []
         self.__all_headers = []
         try:
             self._parse_headers(search)
@@ -2961,11 +3005,13 @@ class AceVolume:
         print("""volume
     filename    %s
     filesize    %i
-    headers     MAIN:1 FILE:%i others:%i""" % (
+    headers     MAIN:1 FILE:%i RECOVERY:%i others:%i""" % (
                 self.__filename,
                 self.__filesize,
                 len(self.__file_headers),
-                len(self.__all_headers) - len(self.__file_headers) - 1),
+                len(self.__recovery_headers),
+                len(self.__all_headers) - len(self.__file_headers) - \
+                        len(self.__recovery_headers) - 1),
             file=file)
         for h in self.__all_headers:
             print(h, file=file)
@@ -3017,8 +3063,8 @@ class AceVolume:
         the magic bytes in the first *search* bytes of the file.
         Raises MainHeaderNotFoundError if the main header could not be located.
         Raises other exceptions if parsing fails for other reasons.
-        On success, loads all the parsed headers into
-        self.__main_header, self.__file_headers and/or self.__all_headers.
+        On success, loads all the parsed headers into self.__main_header,
+        self.__file_headers, self.__recovery_headers and self.__all_headers.
         """
         self.__file.seek(0, 0)
         buf = self.__file.read(512)
@@ -3056,7 +3102,8 @@ class AceVolume:
         Raises CorruptedArchiveError if the header cannot be parsed.
         Guarantees that no data is written to object state
         if an exception is thrown, otherwise the header is added to
-        self.__main_header, self.__file_headers and/or self.__all_headers.
+        self.__main_header, self.__file_headers, self.__recovery_headers
+        and self.__all_headers.
         """
         buf = self.__file.read(4)
         if len(buf) < 4:
@@ -3165,6 +3212,50 @@ class AceVolume:
             self.__file_headers.append(header)
             self.__file.seek(header.packsize, 1)
 
+        elif htype in (Header.TYPE_RECOVERY32,
+                       Header.TYPE_RECOVERY64A,
+                       Header.TYPE_RECOVERY64B):
+            header = RecoveryHeader(hcrc, hsize, htype, hflags)
+            if not header.flag(Header.FLAG_ADDSIZE):
+                raise CorruptedArchiveError("recovery header with addsize == 0")
+            if header.flag(Header.FLAG_64BIT) and \
+               htype == Header.TYPE_RECOVERY32:
+                raise CorruptedArchiveError("64 bit flag in 32 bit header")
+            if not header.flag(Header.FLAG_64BIT) and \
+               htype != Header.TYPE_RECOVERY32:
+                raise CorruptedArchiveError("32 bit flag in 64 bit header")
+            if header.flag(Header.FLAG_64BIT):
+                if i + 23 > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                header.rcvrsize, \
+                header.magic, \
+                header.relstart = struct.unpack('<Q7sQ', buf[i:i+23])
+                i += 23
+            else:
+                if i + 15 > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                header.rcvrsize, \
+                header.magic, \
+                header.relstart = struct.unpack('<L7sL', buf[i:i+15])
+                i += 15
+            if htype == Header.TYPE_RECOVERY64B:
+                if i + 8 > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                header.sectors, \
+                header.spc, \
+                header.clustersize = struct.unpack('<HHL', buf[i:i+8])
+                i += 8
+            else:
+                if i + 10 > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                header.cluster, \
+                header.clustersize, \
+                header.rcvrcrc = struct.unpack('<LLH', buf[i:i+10])
+                i += 10
+            header.dataoffset = self.__file.tell()
+            self.__recovery_headers.append(header)
+            self.__file.seek(header.rcvrsize, 1)
+
         else:
             header = UnknownHeader(hcrc, hsize, htype, hflags)
             addsz = 0
@@ -3183,6 +3274,9 @@ class AceVolume:
 
     def get_file_headers(self):
         return self.__file_headers
+
+    def get_recovery_headers(self):
+        return self.__recovery_headers
 
     def is_locked(self):
         return self.__main_header.flag(Header.FLAG_LOCKED)
