@@ -1192,7 +1192,7 @@ class Huffman:
                 # Not sure if we could prevent this from happening on malformed
                 # input by improving how we choose max_width and codes; so far
                 # only happens on malformed input.
-                raise CorruptedArchiveError("maxwidth_code > len(codes)")
+                raise CorruptedArchiveError("maxwidth_code >= len(codes)")
             symbol = self.codes[maxwidth_code]
             bs.skip_bits(self.widths[symbol])
             return symbol
