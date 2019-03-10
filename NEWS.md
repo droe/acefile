@@ -5,6 +5,7 @@
     (bug reported by Jonathan Leonard).
 -   Parse all variants of recovery headers for dumping and diagnostics, but
     still ignore the actual recovery data (issue #11).
+-   Expose the `--debug` option in the CLI usage information.
 
 
 ### acefile 0.6.11 2019-02-26
@@ -35,7 +36,7 @@
 ### acefile 0.6.7 2017-08-21
 
 -   Make restoration of mtime/atime on extraction optional, default off, and
-    add -r --restore arguments to CLI.
+    add `-r` `--restore` arguments to CLI.
 -   Parse NT security information from FILE headers when present and optionally
     restore file attributes and NT security information on extraction as far as
     the platform supports it (issue #4).
@@ -44,7 +45,7 @@
 ### acefile 0.6.6 2017-08-05
 
 -   Restore mtime and atime on extraction of files (issue #7).
--   Add -V --version arguments to CLI (issue #8).
+-   Add `-V` `--version` arguments to CLI (issue #8).
 
 
 ### acefile 0.6.5 2017-08-01
@@ -106,7 +107,7 @@
 -   Roughly 10% performance increase by constructing non-standard ACE CRC-32
     from python standard library zlib.crc32 instead of using a pure python
     CRC implementation.
--   Show more metadata in CLI --verbose archive info and --list.
+-   Show more metadata in CLI `--verbose` archive info and `--list`.
 -   Generate API documentation.
 
 
@@ -130,7 +131,7 @@
 -   All optional function arguments in the library API must now be passed in
     keyword syntax, not as positional argument, to ensure future extensibility.
 -   Added documentation files into PyPI package.
--   Renamed --yes to --batch in the CLI.
+-   Renamed `--yes` to `--batch` in the CLI.
 
 
 ### acefile 0.4.3 2017-06-27

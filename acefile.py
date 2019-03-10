@@ -4011,7 +4011,7 @@ def unace():
     parser.add_argument('-v', '--verbose', action='store_true',
             help='be more verbose')
     parser.add_argument('--debug', action='store_true',
-            help=argparse.SUPPRESS)
+            help='expose internal exceptions')
 
     # not implemented arguments that other unace implementations have:
     # --(no-)full-path              always full path extraction
