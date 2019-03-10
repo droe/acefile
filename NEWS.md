@@ -1,4 +1,4 @@
-### acefile 0.6.12-dev
+### acefile 0.6.12 2019-03-10
 
 -   Fix an IndexError exception while decompressing corrupt archives, that also
     manifested for some encrypted ACE archives when using a wrong password
