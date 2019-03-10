@@ -1160,7 +1160,7 @@ class AceMode:
                                                     self.delta_len)
         elif self.mode == ACE.MODE_LZ77_EXE:
             args = " exe_mode=%i" % self.exe_mode
-        return "%s(%i)%s" % (ACE.mode_str(self.mode), self.mode, args)
+        return "mode %s(%i)%s" % (ACE.mode_str(self.mode), self.mode, args)
 
 
 
@@ -2956,6 +2956,12 @@ class AceMember:
         """
         return self.__size
 
+    def __str__(self):
+        return "member idx %i sz %i/%i type %i qual %i: %s" % (
+                self._idx, self.packsize, self.size,
+                self.comptype, self.compqual,
+                self.filename)
+
 
 
 class AceVolume:
@@ -3670,6 +3676,9 @@ class AceArchive:
         """
         am = self.getmember(member)
 
+        if DEBUG:
+            eprint(am)
+
         # Need first volume available to read from solid multi-volume archives.
         if self.is_solid() and self.is_multivolume() and self.volume > 0:
             raise MultiVolumeArchiveError("need first volume")
@@ -4011,7 +4020,7 @@ def unace():
     parser.add_argument('-v', '--verbose', action='store_true',
             help='be more verbose')
     parser.add_argument('--debug', action='store_true',
-            help='expose internal exceptions')
+            help='show mode transitions and expose internal exceptions')
 
     # not implemented arguments that other unace implementations have:
     # --(no-)full-path              always full path extraction

@@ -5,7 +5,8 @@
     (bug reported by Jonathan Leonard).
 -   Parse all variants of recovery headers for dumping and diagnostics, but
     still ignore the actual recovery data (issue #11).
--   Expose the `--debug` option in the CLI usage information.
+-   Expose the `--debug` option in the CLI usage information and make its
+    output slightly more understandable.
 
 
 ### acefile 0.6.11 2019-02-26
