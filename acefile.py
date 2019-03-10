@@ -2745,6 +2745,13 @@ class AceMember:
         """
         Decode and sanitize filename for security and platform independence.
         Returns either a sanitized relative path, or an empty string.
+        This python implementation was not vulnerable to CVE-2018-20250, but we
+        include a test vector to make sure anyway.
+        While the author believes this sanitization function to be safe, it is
+        entirely possible that it is not.  For maximum safety against path
+        traversal attacks, for instance when unpacking malicious code, you may
+        want to ignore the filenames in the archive headers and instead
+        generate your own filename for each archive member.
 
         >>> AceMember._sanitize_filename(b'a.exe\\0b.txt')
         'a.exe'
@@ -2781,7 +2788,8 @@ class AceMember:
             filename = filename.replace('/', os.sep)
         if os.sep != '\\':
             filename = filename.replace('\\', os.sep)
-        # eliminate characters illegal on some platforms
+        # eliminate characters illegal on some platforms, including some
+        # characters that are relevant for path traversal attacks (i.e. colon)
         filename = filename.translate(AceMember.TRANSLATION_TAB)
         # first eliminate all /./, foo/../ and similar sequences, then remove
         # all remaining .. labels in order to avoid path traversal attacks but
@@ -2790,7 +2798,9 @@ class AceMember:
         escsep = re.escape(os.sep)
         pattern = r'(^|%s)(?:\.\.(?:%s|$))+' % (escsep, escsep)
         filename = re.sub(pattern, r'\1', filename)
+        # remove leading path separators to ensure a relative path
         filename = filename.lstrip(os.sep)
+        # avoid reserved file names
         if filename in AceMember.RESERVED_NAMES:
             return '_' + filename
         return filename
