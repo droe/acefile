@@ -1,5 +1,6 @@
 ### acefile 0.6.13-dev
 
+-   Rephrase setup failure notices for clarity and precision.
 -   Minor maintainability and test improvements.
 
 

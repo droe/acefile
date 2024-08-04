@@ -63,21 +63,21 @@ def run_setup(with_optional_extensions):
 
 try:
     run_setup(True)
-except Exception:
+except Exception as e:
     print('=' * 78)
-    print('WARNING: The optional C extension(s) could not be compiled!')
-    print('Retrying setup without C extension(s) enabled.')
+    print(f'WARNING: Installation failed with {type(e).__name__}: {e}!')
+    print('Retrying setup without C extensions enabled.')
     print('=' * 78)
     try:
         run_setup(False)
         print('=' * 78)
-        print('WARNING: The optional C extension(s) could not be compiled!')
+        print('WARNING: The optional C extensions failed to install!')
         print('The module will still be functional, but significantly slower.')
         print('=' * 78)
-    except Exception:
+    except Exception as eprime:
         print('=' * 78)
-        print('WARNING: The optional C extension(s) could not be compiled!')
-        print('ERROR: Retrying failed! Problem not related to C extensions.')
+        print(f'WARNING: Installation failed with {type(eprime).__name__}: {eprime}!')
+        print('ERROR: Failed w/o C extensions too, issue likely unrelated to C.')
         print('=' * 78)
         raise
 
