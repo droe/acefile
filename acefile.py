@@ -69,6 +69,7 @@ import array
 import builtins
 import ctypes
 import datetime
+import errno
 import io
 import math
 import os
@@ -270,6 +271,29 @@ class FileSegmentIO:
 
     >>> FileSegmentIO(io.BytesIO(b'0123456789'), 3, 4).read()
     b'3456'
+    >>> f = FileSegmentIO(io.BytesIO(b'0123456789'), 3, 4)
+    >>> f.seekable()
+    True
+    >>> f.seek(0)
+    0
+    >>> f.read(1)
+    b'3'
+    >>> f.seek(1, os.SEEK_CUR)
+    2
+    >>> f.read(1)
+    b'5'
+    >>> f.seek(0, os.SEEK_END)
+    4
+    >>> f.read(1)
+    b''
+    >>> f.seek(-1, os.SEEK_SET)
+    Traceback (most recent call last):
+        ...
+    OSError
+    >>> f.seek(1, os.SEEK_END)
+    Traceback (most recent call last):
+        ...
+    OSError
     """
     def __init__(self, f, base, size):
         assert f.seekable()
@@ -300,8 +324,10 @@ class FileSegmentIO:
             newpos = self._tell() + offset
         elif whence == os.SEEK_END:
             newpos = self.__eof + offset
-        assert newpos >= self.__base and newpos <= self.__eof
+        if not (newpos >= self.__base and newpos <= self.__eof):
+            raise OSError(errno.EINVAL, os.strerror(errno.EINVAL))
         self.__file.seek(newpos)
+        return newpos - self.__base
 
     def read(self, n=None):
         pos = self._tell()
@@ -322,6 +348,29 @@ class MultipleFilesIO:
 
     >>> MultipleFilesIO((io.BytesIO(b'01234'), io.BytesIO(b'56789'))).read()
     b'0123456789'
+    >>> f = MultipleFilesIO((io.BytesIO(b'01234'), io.BytesIO(b'56789')))
+    >>> f.seekable()
+    True
+    >>> f.seek(0)
+    0
+    >>> f.read(1)
+    b'0'
+    >>> f.seek(1, os.SEEK_CUR)
+    2
+    >>> f.read(1)
+    b'2'
+    >>> f.seek(0, os.SEEK_END)
+    10
+    >>> f.read(1)
+    b''
+    >>> f.seek(-1, os.SEEK_SET)
+    Traceback (most recent call last):
+        ...
+    OSError
+    >>> f.seek(1, os.SEEK_END)
+    Traceback (most recent call last):
+        ...
+    OSError
     """
     def __init__(self, files):
         assert len(files) > 0
@@ -335,7 +384,7 @@ class MultipleFilesIO:
         self.__pos = 0
         self.__eof = sum(self.__sizes)
 
-    def seekable():
+    def seekable(self):
         return True
 
     def tell(self):
@@ -348,7 +397,8 @@ class MultipleFilesIO:
             newpos = self.__pos + offset
         elif whence == os.SEEK_END:
             newpos = self.__eof + offset
-        assert newpos >= 0 and newpos <= self.__eof
+        if not (newpos >= 0 and newpos <= self.__eof):
+            raise OSError(errno.EINVAL, os.strerror(errno.EINVAL))
         idx = 0
         relpos = newpos
         while relpos > self.__sizes[idx]:
@@ -356,6 +406,7 @@ class MultipleFilesIO:
             idx += 1
         self.__files[idx].seek(relpos)
         self.__idx = idx
+        return newpos
 
     def read(self, n=None):
         if n == None:
@@ -393,6 +444,9 @@ class EncryptedFileIO:
     Traceback (most recent call last):
         ...
     CorruptedArchiveError
+    >>> f = EncryptedFileIO(io.BytesIO(b'7'*16), AceBlowfish(b'123456789'))
+    >>> f.seekable()
+    False
     """
     def __init__(self, f, engine):
         self.__file = f
@@ -402,7 +456,7 @@ class EncryptedFileIO:
         self.__engine = engine
         self.__buffer = b''
 
-    def seekable():
+    def seekable(self):
         return False
 
     def read(self, n=None):
