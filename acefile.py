@@ -276,7 +276,7 @@ class FileSegmentIO:
         self.__file = f
         self.__base = base
         self.__eof = base + size
-        self.__file.seek(self.__base, 0)
+        self.__file.seek(self.__base)
 
     def seekable(self):
         return True
@@ -293,15 +293,15 @@ class FileSegmentIO:
     def tell(self):
         return self._tell() - self.__base
 
-    def seek(self, offset, whence=0):
-        if whence == 0:
+    def seek(self, offset, whence=os.SEEK_SET):
+        if whence == os.SEEK_SET:
             newpos = self.__base + offset
-        elif whence == 1:
+        elif whence == os.SEEK_CUR:
             newpos = self._tell() + offset
-        elif whence == 2:
+        elif whence == os.SEEK_END:
             newpos = self.__eof + offset
         assert newpos >= self.__base and newpos <= self.__eof
-        self.__file.seek(newpos, 0)
+        self.__file.seek(newpos)
 
     def read(self, n=None):
         pos = self._tell()
@@ -328,7 +328,7 @@ class MultipleFilesIO:
         self.__files = files
         self.__sizes = []
         for f in files:
-            f.seek(0, 2)
+            f.seek(0, os.SEEK_END)
             self.__sizes.append(f.tell())
         self.__files[0].seek(0)
         self.__idx = 0
@@ -341,12 +341,12 @@ class MultipleFilesIO:
     def tell(self):
         return self.__pos
 
-    def seek(self, offset, whence=0):
-        if whence == 0:
+    def seek(self, offset, whence=os.SEEK_SET):
+        if whence == os.SEEK_SET:
             newpos = offset
-        elif whence == 1:
+        elif whence == os.SEEK_CUR:
             newpos = self.__pos + offset
-        elif whence == 2:
+        elif whence == os.SEEK_END:
             newpos = self.__eof + offset
         assert newpos >= 0 and newpos <= self.__eof
         idx = 0
@@ -396,7 +396,7 @@ class EncryptedFileIO:
     """
     def __init__(self, f, engine):
         self.__file = f
-        self.__file.seek(0, 2)
+        self.__file.seek(0, os.SEEK_END)
         self.__eof = self.__file.tell()
         self.__file.seek(0)
         self.__engine = engine
@@ -2996,7 +2996,7 @@ class AceVolume:
                                 "seekable file-like object")
             self.__file = file
             self.__filename = '-'
-        self.__file.seek(0, 2)
+        self.__file.seek(0, os.SEEK_END)
         self.__filesize = self.__file.tell()
         self.__main_header = None
         self.__file_headers = []
@@ -3087,11 +3087,11 @@ class AceVolume:
         On success, loads all the parsed headers into self.__main_header,
         self.__file_headers, self.__recovery_headers and self.__all_headers.
         """
-        self.__file.seek(0, 0)
+        self.__file.seek(0)
         buf = self.__file.read(512)
         found_at_start = False
         if buf[7:14] == MainHeader.MAGIC:
-            self.__file.seek(0, 0)
+            self.__file.seek(0)
             try:
                 self._parse_header()
                 found_at_start = True
@@ -3100,7 +3100,7 @@ class AceVolume:
         if not found_at_start:
             if search == 0:
                 raise MainHeaderNotFoundError("no ACE header at offset 0")
-            self.__file.seek(0, 0)
+            self.__file.seek(0)
             buf = self.__file.read(search)
             magicpos = 7
             while magicpos < search:
@@ -3108,7 +3108,7 @@ class AceVolume:
                 if magicpos == -1:
                     raise MainHeaderNotFoundError(
                             "no ACE header within first %i bytes" % search)
-                self.__file.seek(magicpos - 7, 0)
+                self.__file.seek(magicpos - 7)
                 try:
                     self._parse_header()
                     break
@@ -3231,7 +3231,7 @@ class AceVolume:
             header.reserved2 = buf[i:]
             header.dataoffset = self.__file.tell()
             self.__file_headers.append(header)
-            self.__file.seek(header.packsize, 1)
+            self.__file.seek(header.packsize, os.SEEK_CUR)
 
         elif htype in (Header.TYPE_RECOVERY32,
                        Header.TYPE_RECOVERY64A,
@@ -3275,7 +3275,7 @@ class AceVolume:
                 i += 10
             header.dataoffset = self.__file.tell()
             self.__recovery_headers.append(header)
-            self.__file.seek(header.rcvrsize, 1)
+            self.__file.seek(header.rcvrsize, os.SEEK_CUR)
 
         else:
             header = UnknownHeader(hcrc, hsize, htype, hflags)
@@ -3289,7 +3289,7 @@ class AceVolume:
                     if i + 4 > len(buf):
                         raise CorruptedArchiveError("truncated header")
                     addsz, = struct.unpack('<L', buf[i:i+4])
-            self.__file.seek(addsz, 1)
+            self.__file.seek(addsz, os.SEEK_CUR)
 
         self.__all_headers.append(header)
 
@@ -3713,7 +3713,7 @@ class AceArchive:
 
         if (not am.is_dir()) and am.size > 0:
             f = am._file
-            f.seek(0, 0)
+            f.seek(0)
 
             # For password protected members, wrap the file-like object in
             # a decrypting wrapper object.
