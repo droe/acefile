@@ -37,7 +37,7 @@ notifications, refer to:
 - https://apidoc.roe.ch/acefile
 - https://github.com/droe/acefile
 - https://pypi.python.org/pypi/acefile
-- https://twitter.com/droethlisberger
+- https://infosec.exchange/@droe
 
 
 ## Requirements
