@@ -1,6 +1,7 @@
-### acefile 0.6.13-dev
+### acefile 0.6.13 2024-11-09
 
--   Rephrase setup failure notices for clarity and precision.
+-   Rephrase setup failure notices for clarity.
+-   Improve seekable conformance of internal file-like wrappers.
 -   Minor maintainability and test improvements.
 
 

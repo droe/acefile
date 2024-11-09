@@ -55,7 +55,7 @@ notifications, refer to:
 - https://infosec.exchange/@droe
 """
 
-__version__     = '0.6.13-dev'
+__version__     = '0.6.13'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017-2024, Daniel Roethlisberger'
