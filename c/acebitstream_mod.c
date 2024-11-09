@@ -1,6 +1,6 @@
 /*
  * acefile - read/test/extract ACE 1.0 and 2.0 archives in pure python
- * Copyright (C) 2017-2019, Daniel Roethlisberger <daniel@roe.ch>
+ * Copyright (C) 2017-2024, Daniel Roethlisberger <daniel@roe.ch>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

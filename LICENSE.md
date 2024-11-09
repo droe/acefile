@@ -2,7 +2,7 @@
 
 ## Copyright
 
-Copyright (c) 2017-2019, Daniel Roethlisberger and contributors.
+Copyright (c) 2017-2024, Daniel Roethlisberger and contributors.
 All rights reserved.
 Licensed under the 2-clause BSD license contained herein.
 
