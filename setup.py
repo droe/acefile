@@ -33,9 +33,7 @@ def run_setup(with_optional_extensions):
         license=acefile.__license__,
         platforms=['all'],
         classifiers=[
-            # https://pypi.python.org/pypi?%3Aaction=list_classifiers
             'Development Status :: 5 - Production/Stable',
-            'License :: OSI Approved :: BSD License',
             'Operating System :: OS Independent',
             'Programming Language :: Python :: 3',
             'Programming Language :: Python :: 3.3',
@@ -48,17 +46,17 @@ def run_setup(with_optional_extensions):
             'Programming Language :: Python :: 3.10',
             'Programming Language :: Python :: 3.11',
             'Programming Language :: Python :: 3.12',
+            'Programming Language :: Python :: 3.13',
             'Topic :: System :: Archiving :: Compression',
         ],
         keywords=['ace', 'unace', 'compression', 'decompression', 'archive'],
         py_modules=['acefile'],
         ext_modules=ext_modules,
-        entry_points = {
+        entry_points={
             'console_scripts': [
                 'acefile-unace=acefile:unace',
             ],
         },
-        test_suite = 'acefile.testsuite',
     )
 
 try:

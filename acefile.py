@@ -55,12 +55,12 @@ notifications, refer to:
 - https://infosec.exchange/@droe
 """
 
-__version__     = '0.6.13'
+__version__     = '0.6.14-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
 __copyright__   = 'Copyright 2017-2024, Daniel Roethlisberger'
 __credits__     = ['Marcel Lemke']
-__license__     = 'BSD'
+__license__     = 'BSD-2-Clause'
 __url__         = 'https://www.roe.ch/acefile'
 
 
@@ -4352,6 +4352,8 @@ def unace():
 def testsuite():
     import doctest
     return doctest.DocTestSuite(optionflags=doctest.IGNORE_EXCEPTION_DETAIL)
+
+
 
 def test():
     import doctest

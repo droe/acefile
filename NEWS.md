@@ -1,3 +1,8 @@
+### acefile 0.6.14-dev
+
+-   Remove deprecated setup.py features.
+
+
 ### acefile 0.6.13 2024-11-09
 
 -   Rephrase setup failure notices for clarity.
