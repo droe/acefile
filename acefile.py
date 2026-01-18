@@ -79,10 +79,18 @@ import struct
 import sys
 import zlib
 
-try:
+
+
+_ACEFILE_FORCE_ACEBITSTREAM = os.environ.get('ACEFILE_FORCE_ACEBITSTREAM', None)
+if _ACEFILE_FORCE_ACEBITSTREAM == '1':
     import acebitstream
-except:
+elif _ACEFILE_FORCE_ACEBITSTREAM == '0':
     acebitstream = None
+else:
+    try:
+        import acebitstream
+    except:
+        acebitstream = None
 
 
 
@@ -2811,29 +2819,29 @@ class AceMember:
         want to ignore the filenames in the archive headers and instead
         generate your own filename for each archive member.
 
-        >>> AceMember._sanitize_filename(b'a.exe\\0b.txt')
+        >>> AceMember._sanitize_filename(b'a.exe\\0b.txt').replace('\\\\', '/')
         'a.exe'
-        >>> AceMember._sanitize_filename(b'\\\\etc\\\\foo/bar\\\\baz.txt')
+        >>> AceMember._sanitize_filename(b'\\\\etc\\\\foo/bar\\\\baz.txt').replace('\\\\', '/')
         'etc/foo/bar/baz.txt'
-        >>> AceMember._sanitize_filename(b'a/b/../b/.//.././c/.//../d/file.txt')
+        >>> AceMember._sanitize_filename(b'a/b/../b/.//.././c/.//../d/file.txt').replace('\\\\', '/')
         'a/d/file.txt'
-        >>> AceMember._sanitize_filename(b'/etc/passwd')
+        >>> AceMember._sanitize_filename(b'/etc/passwd').replace('\\\\', '/')
         'etc/passwd'
-        >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/passwd')
+        >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/passwd').replace('\\\\', '/')
         'etc/passwd'
-        >>> AceMember._sanitize_filename(b'C:\\\\Windows\\\\foo.exe')
+        >>> AceMember._sanitize_filename(b'C:\\\\Windows\\\\foo.exe').replace('\\\\', '/')
         'C/Windows/foo.exe'
-        >>> AceMember._sanitize_filename(b'\\\\\\\\server\\\\share\\\\file')
+        >>> AceMember._sanitize_filename(b'\\\\\\\\server\\\\share\\\\file').replace('\\\\', '/')
         'server/share/file'
-        >>> AceMember._sanitize_filename(b'\\\\\\\\.\\\\CdRom0')
+        >>> AceMember._sanitize_filename(b'\\\\\\\\.\\\\CdRom0').replace('\\\\', '/')
         'CdRom0'
-        >>> AceMember._sanitize_filename(b'\\\\\\\\?\\\\raw\\\\path')
+        >>> AceMember._sanitize_filename(b'\\\\\\\\?\\\\raw\\\\path').replace('\\\\', '/')
         'raw/path'
-        >>> AceMember._sanitize_filename(b'hello\x05world')
+        >>> AceMember._sanitize_filename(b'hello\x05world').replace('\\\\', '/')
         'helloworld'
-        >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/../')
+        >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/../').replace('\\\\', '/')
         ''
-        >>> AceMember._sanitize_filename(b'c:\\\\c:\\\\CVE-2018-20250\\\\p.lnk')
+        >>> AceMember._sanitize_filename(b'c:\\\\c:\\\\CVE-2018-20250\\\\p.lnk').replace('\\\\', '/')
         'c/c/CVE-2018-20250/p.lnk'
         """
         filename = filename.decode('utf-8', errors='replace')
@@ -2846,15 +2854,17 @@ class AceMember:
             filename = filename.replace('/', os.sep)
         if os.sep != '\\':
             filename = filename.replace('\\', os.sep)
-        # eliminate characters illegal on some platforms, including some
-        # characters that are relevant for path traversal attacks (i.e. colon)
+        # Eliminate characters illegal on some platforms, including some
+        # characters that are relevant for path traversal attacks (i.e. colon).
         filename = filename.translate(AceMember.TRANSLATION_TAB)
-        # first eliminate all /./, foo/../ and similar sequences, then remove
-        # all remaining .. labels in order to avoid path traversal attacks but
-        # still allow a safe subset of dot syntax in the filename
+        # First eliminate all /./, foo/../ and similar sequences, then remove
+        # all remaining . and .. labels in order to avoid path traversal
+        # attacks but still allow a safe subset of dot syntax in the filename.
+        # The exact behaviour of normpath differs between POSIX and Windows, so
+        # the regex also serves as a second line of defense.
         filename = os.path.normpath(filename)
         escsep = re.escape(os.sep)
-        pattern = r'(^|%s)(?:\.\.(?:%s|$))+' % (escsep, escsep)
+        pattern = r'(^|%s)(?:\.\.?(?:%s|$))+' % (escsep, escsep)
         filename = re.sub(pattern, r'\1', filename)
         # remove leading path separators to ensure a relative path
         filename = filename.lstrip(os.sep)
