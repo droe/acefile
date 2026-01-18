@@ -1,0 +1,100 @@
+name: Test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.13t", "3.14", "3.14t"]
+
+    steps:
+
+    - uses: actions/checkout@v6
+      with:
+        path: acefile
+
+    - uses: actions/checkout@v6
+      with:
+        repository: droe/acefile-testdata
+        path: testdata
+
+    - name: "Set up Python ${{ matrix.python-version }}"
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: "Install dependencies"
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f acefile/requirements.txt ]; then pip install -r acefile/requirements.txt; fi
+        if [ -f acefile/requirements-dev.txt ]; then pip install -r acefile/requirements-dev.txt; fi
+
+    - name: "Display Python version"
+      shell: bash
+      run: |
+        python -c "import sys; print(sys.version)"
+
+    - name: "Build acebitstream C module"
+      shell: bash
+      run: |
+        cd acefile && python setup.py build_ext --inplace
+
+
+    # doctest variants
+
+    - name: "Run doctest, with acebitstream, free-threaded"
+      if: ${{ endsWith(matrix.python-version, 't') }}
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=1 python -X gil=0 acefile.py --doctest -v
+
+    - name: "Run doctest, with acebitstream, with GIL"
+      if: ${{ endsWith(matrix.python-version, 't') }}
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=1 python -X gil=1 acefile.py --doctest -v
+
+    - name: "Run doctest, with acebitstream"
+      if: ${{ ! endsWith(matrix.python-version, 't') }}
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=1 python acefile.py --doctest -v
+
+    - name: "Run doctest, without acebitstream, free-threaded"
+      if: ${{ endsWith(matrix.python-version, 't') }}
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=0 python -X gil=0 acefile.py --doctest -v
+
+    - name: "Run doctest, without acebitstream, with GIL"
+      if: ${{ endsWith(matrix.python-version, 't') }}
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=0 python -X gil=1 acefile.py --doctest -v
+
+    - name: "Run doctest, without acebitstream"
+      if: ${{ ! endsWith(matrix.python-version, 't') }}
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=0 python acefile.py --doctest -v
+
+
+    # pytest variants without GIL variants for now
+
+    - name: "Run pytest, with acebitstream"
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=1 pytest -v
+
+    - name: "Run pytest, without acebitstream"
+      shell: bash
+      run: |
+        cd acefile && ACEFILE_FORCE_ACEBITSTREAM=0 pytest -v

@@ -1,5 +1,6 @@
 ### acefile 0.6.14-dev
 
+-   Add pytest smoke tests and configure GitHub Actions CI for testing.
 -   Remove deprecated setup.py features.
 
 

@@ -116,6 +116,24 @@ Check usage for more functionality:
     acefile-unace -h
 
 
+## Testing
+
+This project uses docstrings for unit testing:
+
+    ./acefile.py --doctest
+
+This project uses pytest for integration testing, recursively looking for
+corpora of ACE archives in `../acefile-testdata/` and
+`../acefile-testdata-private/`.  The former is intended for a checkout of
+[droe/acefile-testdata](https://github.com/droe/acefile-testdata).  The latter
+is intended for a developer-local test corpus that might be impractically large
+or contain data that cannot be redistributed.  Both are optional, the
+integration tests are currently not useful without any test archives though.
+
+    git clone https://github.com/droe/acefile-testdata.git ../acefile-testdata
+    pytest -v
+
+
 ## Credits
 
 Marcel Lemke for designing the ACE archive format and ACE compression and

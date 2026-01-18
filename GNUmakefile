@@ -31,6 +31,9 @@ upload: $(SDISTSIG)
 doctest:
 	$(PYTHON) acefile.py --doctest
 
+test: doctest
+	pytest -v
+
 build:
 	$(PYTHON) setup.py build_ext --inplace
 
