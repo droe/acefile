@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# vim: set list et ts=8 sts=4 sw=4 ft=python:
 
 from setuptools import setup, find_packages
 from setuptools.extension import Extension

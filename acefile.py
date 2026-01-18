@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-# vim: set list et ts=8 sts=4 sw=4 ft=python:
 
 # acefile - read/test/extract ACE 1.0 and 2.0 archives in pure python
-# Copyright (C) 2017-2024, Daniel Roethlisberger <daniel@roe.ch>
+# Copyright (C) 2017-2026, Daniel Roethlisberger <daniel@roe.ch>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -58,7 +57,7 @@ notifications, refer to:
 __version__     = '0.6.14-dev'
 __author__      = 'Daniel Roethlisberger'
 __email__       = 'daniel@roe.ch'
-__copyright__   = 'Copyright 2017-2024, Daniel Roethlisberger'
+__copyright__   = 'Copyright 2017-2026, Daniel Roethlisberger'
 __credits__     = ['Marcel Lemke']
 __license__     = 'BSD-2-Clause'
 __url__         = 'https://www.roe.ch/acefile'
