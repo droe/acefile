@@ -54,9 +54,11 @@ filelike_read(void *ctx, char *buf, size_t n)
 	}
 	arglist = Py_BuildValue("(k)", n);
 	if (arglist == NULL) {
+		Py_DECREF(method);
 		return 0;
 	}
 	buffer = PyObject_CallObject(method, arglist);
+	Py_DECREF(method);
 	Py_DECREF(arglist);
 	if (buffer == NULL) {
 		return 0;
