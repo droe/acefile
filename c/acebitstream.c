@@ -62,8 +62,9 @@ acebitstream_refill_bits(acebitstream_ctx_t *ctx)
 	assert(ctx->bitcount <= 32);
 	if (ctx->bufptr == ctx->bufend) {
 		acebitstream_refill_buf(ctx);
-		if (ctx->bufptr == ctx->bufend)
+		if (ctx->bufptr == ctx->bufend) {
 			return;
+		}
 	}
 	ctx->bits |= ((uint64_t)*ctx->bufptr) << (32 - ctx->bitcount);
 	ctx->bitcount += 32;
@@ -76,8 +77,9 @@ acebitstream_new(acebitstream_read_cb_t read, void *read_ctx, size_t bufsz)
 	acebitstream_ctx_t *ctx;
 
 	ctx = malloc(sizeof(acebitstream_ctx_t));
-	if (!ctx)
+	if (!ctx) {
 		return NULL;
+	}
 	memset(ctx, 0, sizeof(acebitstream_ctx_t));
 
 	ctx->read = read;
@@ -115,8 +117,9 @@ acebitstream_skip_bits(acebitstream_ctx_t *ctx, size_t n)
 	assert(n > 0 && n < 32);
 	if (ctx->bitcount < n) {
 		acebitstream_refill_bits(ctx);
-		if (ctx->bitcount < n)
+		if (ctx->bitcount < n) {
 			return ACEBITSTREAM_EOF;
+		}
 	}
 	ctx->bits <<= n;
 	ctx->bitcount -= n;
@@ -130,8 +133,9 @@ acebitstream_read_bits(acebitstream_ctx_t *ctx, size_t n)
 
 	value = acebitstream_peek_bits(ctx, n);
 	rv = acebitstream_skip_bits(ctx, n);
-	if (rv == ACEBITSTREAM_EOF)
+	if (rv == ACEBITSTREAM_EOF) {
 		return rv;
+	}
 	return value;
 }
 

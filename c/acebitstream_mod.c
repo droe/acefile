@@ -49,17 +49,20 @@ filelike_read(void *ctx, char *buf, size_t n)
 	PyObject *f = ctx;
 
 	method = PyObject_GetAttrString(f, (char*)"read");
-	if (method == NULL)
+	if (method == NULL) {
 		return 0;
+	}
 	arglist = Py_BuildValue("(k)", n);
-	if (arglist == NULL)
+	if (arglist == NULL) {
 		return 0;
+	}
 	buffer = PyObject_CallObject(method, arglist);
 	Py_DECREF(arglist);
-	if (buffer == NULL)
+	if (buffer == NULL) {
 		return 0;
+	}
 	ret = PyBytes_Size(buffer);
-	if (ret % 4) {
+	if (ret % 4 != 0) {
 		Py_DECREF(buffer);
 		PyErr_SetString(PyExc_ValueError,
 		                "Truncated 32-bit word from file-like object");
@@ -107,8 +110,9 @@ BitStream_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 	BitStream *self;
 
 	self = (BitStream*)type->tp_alloc(type, 0);
-	if (self == NULL)
+	if (self == NULL) {
 		return NULL;
+	}
 	self->ctx = NULL;
 	return (PyObject*)self;
 }
@@ -120,12 +124,16 @@ BitStream_init(BitStream *self, PyObject *args, PyObject *kwds)
 	PyObject *f;
 	size_t bufsz = 131072;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|I", kwlist, &f, &bufsz))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|I", kwlist, &f, &bufsz)) {
 		return -1;
+	}
+
 	Py_INCREF(f);
 	self->ctx = acebitstream_new(filelike_read, f, bufsz);
-	if (PyErr_Occurred())
+	if (PyErr_Occurred()) {
+		/* filelike_read raised an exception */
 		return -1;
+	}
 	return 0;
 }
 
@@ -135,8 +143,9 @@ BitStream_peek_bits(BitStream *self, PyObject *args)
 	size_t ret;
 	unsigned int n = 0;
 
-	if (!PyArg_ParseTuple(args, "I", &n))
+	if (!PyArg_ParseTuple(args, "I", &n)) {
 		return NULL;
+	}
 	if (n > 31) {
 		PyErr_SetString(PyExc_ValueError,
 		                "Cannot peek more than 31 bits");
@@ -144,8 +153,11 @@ BitStream_peek_bits(BitStream *self, PyObject *args)
 	}
 
 	ret = acebitstream_peek_bits(self->ctx, n);
-	if (PyErr_Occurred())
+	if (PyErr_Occurred()) {
+		/* filelike_read raised an exception */
 		return NULL;
+	}
+	/* peek_bits never returns ACEBITSTREAM_EOF */
 	return PyLong_FromLong(ret);
 }
 
@@ -155,8 +167,9 @@ BitStream_skip_bits(BitStream *self, PyObject *args)
 	size_t ret;
 	unsigned int n = 0;
 
-	if (!PyArg_ParseTuple(args, "I", &n))
+	if (!PyArg_ParseTuple(args, "I", &n)) {
 		return NULL;
+	}
 	if (n > 31) {
 		PyErr_SetString(PyExc_ValueError,
 		                "Cannot skip more than 31 bits");
@@ -164,8 +177,10 @@ BitStream_skip_bits(BitStream *self, PyObject *args)
 	}
 
 	ret = acebitstream_skip_bits(self->ctx, n);
-	if (PyErr_Occurred())
+	if (PyErr_Occurred()) {
+		/* filelike_read raised an exception */
 		return NULL;
+	}
 	if (ret == ACEBITSTREAM_EOF) {
 		PyErr_SetString(PyExc_EOFError,
 		                "Cannot skip bits beyond EOF");
@@ -181,8 +196,9 @@ BitStream_read_bits(BitStream *self, PyObject *args)
 	size_t ret;
 	unsigned int n = 0;
 
-	if (!PyArg_ParseTuple(args, "I", &n))
+	if (!PyArg_ParseTuple(args, "I", &n)) {
 		return NULL;
+	}
 	if (n > 31) {
 		PyErr_SetString(PyExc_ValueError,
 		                "Cannot read more than 31 bits");
@@ -190,8 +206,10 @@ BitStream_read_bits(BitStream *self, PyObject *args)
 	}
 
 	ret = acebitstream_read_bits(self->ctx, n);
-	if (PyErr_Occurred())
+	if (PyErr_Occurred()) {
+		/* filelike_read raised an exception */
 		return NULL;
+	}
 	if (ret == ACEBITSTREAM_EOF) {
 		PyErr_SetString(PyExc_EOFError,
 		                "Cannot read bits beyond EOF");
@@ -261,17 +279,17 @@ PyInit_acebitstream(void)
 {
 	PyObject *module;
 
-	BitStreamType.tp_new = PyType_GenericNew;
-	if (PyType_Ready(&BitStreamType) < 0)
+	if (PyType_Ready(&BitStreamType) < 0) {
 		return NULL;
+	}
 
 	module = PyModule_Create(&acebitstream_module);
-	if (module == NULL)
+	if (module == NULL) {
 		return NULL;
+	}
 
 	Py_INCREF(&BitStreamType);
 	PyModule_AddObject(module, "BitStream", (PyObject*)&BitStreamType);
-
 	return module;
 }
 
