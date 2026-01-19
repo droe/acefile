@@ -30,6 +30,7 @@ upload: $(SDISTSIG)
 
 doctest:
 	$(PYTHON) acefile.py --doctest
+	$(PYTHON) tests/test_smoke.py --doctest
 
 test: doctest
 	pytest -v
