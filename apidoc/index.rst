@@ -22,6 +22,9 @@ Typical use of :mod:`acefile` has the following structure:
 See :class:`acefile.AceArchive` and :class:`acefile.AceMember` for the
 complete descriptions of the methods supported by these two classes.
 
+On free-threaded Python, :mod:`acefile` is only thread-safe as long as only a
+single thread operates on any given :class:`acefile.AceArchive` at a time.
+
 Functions
 ~~~~~~~~~
 

@@ -290,6 +290,17 @@ PyInit_acebitstream(void)
 		return NULL;
 	}
 
+#ifdef Py_GIL_DISABLED
+	/*
+	 * There are no critical sections, because the premise is that
+	 * decompression from the same file-like object is inherently not
+	 * thread-safe.  Decompressing archive members from the same non-solid
+	 * archive in parallel would need to be made thread-safe at a higher
+	 * layer than reading bits from a file-like object.
+	 */
+	PyUnstable_Module_SetGIL(module, Py_MOD_GIL_NOT_USED);
+#endif
+
 	Py_INCREF(&BitStreamType);
 	PyModule_AddObject(module, "BitStream", (PyObject*)&BitStreamType);
 	return module;
