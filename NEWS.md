@@ -1,4 +1,4 @@
-### acefile 0.6.14-dev
+### acefile 0.6.14 2026-01-21
 
 -   Experimental support for free-threaded Python.
 -   Fix memory leak in acebitstream module.
