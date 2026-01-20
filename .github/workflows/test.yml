@@ -98,3 +98,11 @@ jobs:
       shell: bash
       run: |
         cd acefile && ACEFILE_FORCE_ACEBITSTREAM=0 pytest -v
+
+
+    # build documentation
+
+    - name: "Build apidocs"
+      shell: bash
+      run: |
+        cd acefile/apidoc && sphinx-build -W . _build
