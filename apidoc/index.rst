@@ -30,7 +30,7 @@ Functions
 
 .. autofunction:: is_acefile
 
-.. autofunction:: open(file, mode='r', \*, search=524288)
+.. autofunction:: open(file, mode='r', \*, search=524288, encoding='cp850')
 
 AceArchive Class
 ~~~~~~~~~~~~~~~~
