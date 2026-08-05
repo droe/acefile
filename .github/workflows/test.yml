@@ -23,7 +23,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         repository: droe/acefile-testdata
-        path: testdata
+        path: acefile-testdata
 
     - name: "Set up Python ${{ matrix.python-version }}"
       uses: actions/setup-python@v5
