@@ -1,8 +1,9 @@
 ### acefile 0.6.15-dev
 
+-   Allow callers to select the appropriate code page for decoding paths,
+    filenames and comments, and encoding the password for decryption, leaving
+    the default at utf-8 (pull req #19, @bitplane).
 -   Add twine to dev requirements.
--   Decode archive member filenames as CP850 by default and allow callers to
-    select a different filename encoding.
 
 
 ### acefile 0.6.14 2026-01-21

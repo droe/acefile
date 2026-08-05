@@ -782,13 +782,13 @@ class AceBlowfish:
         0x90D4F869, 0xA65CDEA0, 0x3F09252D, 0xC208E69F,
         0xB74E6132, 0xCE77E25B, 0x578FDFE3, 0x3AC372E6)
 
-    def __init__(self, pwd):
+    def __init__(self, pwd, *, encoding='utf-8'):
         """
         Initialize decryption engine with a key derived from password *pwd*,
         which can be str or bytes.
         """
         if isinstance(pwd, str):
-            pwd = pwd.encode('utf-8')
+            pwd = pwd.encode(encoding)
         self._bf_init(self._derive_key(pwd))
 
     def _derive_key(self, pwd):
@@ -2807,7 +2807,7 @@ class AceMember:
     TRANSLATION_TAB = str.maketrans(dict.fromkeys(RESERVED_CHARS))
 
     @staticmethod
-    def _sanitize_filename(filename, encoding='cp850'):
+    def _sanitize_filename(filename, encoding='utf-8'):
         """
         Decode and sanitize filename for security and platform independence.
         Returns either a sanitized relative path, or an empty string.
@@ -2843,8 +2843,10 @@ class AceMember:
         ''
         >>> AceMember._sanitize_filename(b'c:\\\\c:\\\\CVE-2018-20250\\\\p.lnk').replace('\\\\', '/')
         'c/c/CVE-2018-20250/p.lnk'
-        >>> AceMember._sanitize_filename('À.txt'.encode('cp850'))
+        >>> AceMember._sanitize_filename('À.txt'.encode('cp850'), encoding='cp850')
         'À.txt'
+        >>> AceMember._sanitize_filename('╟╫╢.txt'.encode('cp437'), encoding='cp437')
+        '╟╫╢.txt'
         >>> AceMember._sanitize_filename('café.txt'.encode('utf-8'), encoding='utf-8')
         'café.txt'
         """
@@ -2877,7 +2879,7 @@ class AceMember:
             return '_' + filename
         return filename
 
-    def __init__(self, idx, filehdrs, f, *, encoding='cp850'):
+    def __init__(self, idx, filehdrs, f, *, encoding='utf-8'):
         """
         Initialize an :class:`AceMember` object with index within archive *idx*,
         initial file header *filehdr* and underlying file-like object *f*.
@@ -2886,7 +2888,7 @@ class AceMember:
         self._file          = f
         self._headers       = filehdrs
         self.__attribs      = filehdrs[0].attribs
-        self.__comment      = filehdrs[0].comment.decode('utf-8',
+        self.__comment      = filehdrs[0].comment.decode(encoding,
                                                          errors='replace')
         self.__crc32        = filehdrs[-1].crc32
         self.__comptype     = filehdrs[0].comptype
@@ -3052,7 +3054,7 @@ class AceVolume:
     Parse and represent a single archive volume.
     """
 
-    def __init__(self, file, mode='r', *, search=524288, _idx=0, _am=None):
+    def __init__(self, file, mode='r', *, search=524288, encoding='utf-8', _idx=0, _am=None):
         if mode != 'r':
             raise NotImplementedError("mode != 'r' not implemented")
         if isinstance(file, str):
@@ -3070,6 +3072,7 @@ class AceVolume:
         self.__file_headers = []
         self.__recovery_headers = []
         self.__all_headers = []
+        self.__encoding = encoding
         try:
             self._parse_headers(search)
             if self.__main_header == None:
@@ -3113,7 +3116,7 @@ class AceVolume:
         assert fhdr in self.__file_headers
         return FileSegmentIO(self.__file, fhdr.dataoffset, fhdr.packsize)
 
-    def _next_filename(self):
+    def _next_volume_filename(self):
         """
         Derive the filename of the next volume after this one.
         If the filename ends in ``.[cC]XX``, XX is incremented by 1.
@@ -3139,9 +3142,9 @@ class AceVolume:
         Open the next volume following this one in a multi-volume archive
         and return the instantiated :class:`AceVolume` object.
         """
-        for nextname in self._next_filename():
+        for nextname in self._next_volume_filename():
             try:
-                return AceVolume(nextname, mode=mode, search=0)
+                return AceVolume(nextname, mode=mode, search=0, encoding=self.__encoding)
             except FileNotFoundError:
                 continue
         return None
@@ -3378,11 +3381,11 @@ class AceVolume:
 
     @property
     def advert(self):
-        return self.__main_header.advert.decode('utf-8', errors='replace')
+        return self.__main_header.advert.decode(self.__encoding, errors='replace')
 
     @property
     def comment(self):
-        return self.__main_header.comment.decode('utf-8', errors='replace')
+        return self.__main_header.comment.decode(self.__encoding, errors='replace')
 
     @property
     def cversion(self):
@@ -3424,7 +3427,7 @@ class AceArchive:
     """
 
     @classmethod
-    def _open(cls, file, mode='r', *, search=524288, encoding='cp850'):
+    def _open(cls, file, mode='r', *, search=524288, encoding='utf-8'):
         """
         Open archive from *file*, which is either a filename or seekable
         file-like object, and return an instance of :class:`AceArchive`
@@ -3437,10 +3440,11 @@ class AceArchive:
         For 1:1 compatibility with the official unace, 1024 sectors are
         searched by default, even though none of the SFX stubs that come with
         ACE compressors are that large.
-        Member filenames are decoded from the OEM code page *encoding*, which
-        defaults to CP850.  Pass a different codec name for archives created
-        with another OEM code page or a non-standard encoding such as UTF-8.
-
+        Member paths, filenames and comments are decoded from the OEM code page
+        *encoding*, which defaults to the non-standard UTF-8.  Pass a codec
+        name such as 'cp850' or 'cp437' for archives created with a known OEM
+        code page.  The encoding will also be used to encode the password for
+        decryption of encrypted archives.
         Multi-volume archives are represented by a single :class:`AceArchive`
         object to the caller, all operations transparently read into subsequent
         volumes as required.
@@ -3450,7 +3454,7 @@ class AceArchive:
         """
         return cls(file, mode, search=search, encoding=encoding)
 
-    def __init__(self, file, mode='r', *, search=524288, encoding='cp850'):
+    def __init__(self, file, mode='r', *, search=524288, encoding='utf-8'):
         """
         See :meth:`AceArchive._open`.
         """
@@ -3462,16 +3466,17 @@ class AceArchive:
         else:
             file = (file,)
 
+        self.__encoding = encoding
         self.__volumes = []
         try:
             # load volumes
             self.__tmp_file = file[0]
-            self.__volumes.append(AceVolume(file[0], mode, search=search))
+            self.__volumes.append(AceVolume(file[0], mode, search=search, encoding=encoding))
             self.__tmp_file = None
             if self.__volumes[0].is_multivolume():
                 for f in file[1:]:
                     self.__tmp_file = f
-                    self.__volumes.append(AceVolume(f, mode, search=0))
+                    self.__volumes.append(AceVolume(f, mode, search=0, encoding=encoding))
                     self.__tmp_file = None
                 if len(self.__volumes) == 1 and isinstance(file[0], str):
                     vol = self.__volumes[0]
@@ -3792,7 +3797,7 @@ class AceArchive:
             if am.is_enc():
                 if not pwd:
                     raise EncryptedArchiveError("need password")
-                f = EncryptedFileIO(f, AceBlowfish(pwd))
+                f = EncryptedFileIO(f, AceBlowfish(pwd, encoding=self.__encoding))
 
             # Choose the matching decompressor based on the first header.
             if am.comptype == Header.COMP_STORED:
@@ -4100,8 +4105,8 @@ def unace():
             help='base directory for extraction')
     parser.add_argument('-p', '--password', type=str, metavar='X',
             help='password for decryption')
-    parser.add_argument('--encoding', type=str, default='cp850', metavar='X',
-            help='archive filename encoding (default: cp850)')
+    parser.add_argument('--encoding', type=str, default='utf-8', metavar='X',
+            help='archive filename and comment encoding (default: utf-8)')
     parser.add_argument('-r', '--restore', action='store_true',
             help='restore mtime/atime, attribs and ntsecurity on extraction')
     parser.add_argument('-b', '--batch', action='store_true',

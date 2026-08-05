@@ -30,7 +30,7 @@ Functions
 
 .. autofunction:: is_acefile
 
-.. autofunction:: open(file, mode='r', \*, search=524288, encoding='cp850')
+.. autofunction:: open(file, mode='r', \*, search=524288, encoding='utf-8')
 
 AceArchive Class
 ~~~~~~~~~~~~~~~~
@@ -142,6 +142,14 @@ reading them into memory:
             for block in fi.readblocks('large.iso'):
                 fo.write(block)
 
+Select the correct encoding matching the OEM code page that was used to archive
+the paths, filenames and comments in an archive:
+
+.. code:: python
+
+    with acefile.open('example.ace', encoding='cp437') as f:
+        f.extractall()
+
 ACE File Format
 ---------------
 
@@ -247,3 +255,10 @@ use a single password for all members.  There is no password verifier in the
 file format; the only way to verify a password is to decrypt and decompress the
 archive member and check the CRC.
 
+Filename Encoding
+~~~~~~~~~~~~~~~~~
+
+ACE archives carry no metadata indicating which character encoding was used for
+paths and filenames in archives.  Instead, paths and filenames were encoded and
+decoded in whatever code page was in use on the local machine.  Commonly in use
+was CP850 in most of Western Europe, and CP437 in the US.

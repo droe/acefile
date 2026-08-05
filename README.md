@@ -83,13 +83,6 @@ In-memory decompression of a specific archive member:
     with acefile.open(filelike) as f:
         data = f.read('example.txt')
 
-ACE filenames are stored using an OEM code page and are decoded as CP850 by
-default.  For archives created with another code page or a non-standard UTF-8
-filename, pass its Python codec name explicitly:
-
-    with acefile.open('example.ace', encoding='cp437') as f:
-        f.extractall()
-
 Handle archives potentially containing large members in chunks to avoid fully
 reading them into memory:
 
@@ -99,6 +92,15 @@ reading them into memory:
         with open('large.iso', 'wb') as fo:
             for block in fi.readblocks('large.iso'):
                 fo.write(block)
+
+Filenames in ACE archives are stored in whatever local OEM/ANSI code page in
+use on the archiving system, without any indication in the archive format as to
+which code page that might be.  Since acefile 0.6.15, the code page can be
+specified if it is known, otherwise utf-8 is used by default, matching the
+behaviour of older versions of acefile.
+
+    with acefile.open('example.ace', encoding='cp437') as f:
+        f.extractall()
 
 Check the [API documentation](https://apidoc.roe.ch/acefile) for a complete
 description of the API.

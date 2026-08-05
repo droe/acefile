@@ -37,8 +37,8 @@ def pytest_generate_tests(metafunc):
     for subdir in subdirs:
         path = os.path.realpath(f'{here}/../../{subdir}')
         if os.path.exists(path):
-            archives += glob.glob(f'{path}/**/*.ace')
-            archives += glob.glob(f'{path}/**/*.exe')
+            archives += glob.glob(f'{path}/**/*.[aA][cC][eE]', recursive=True)
+            archives += glob.glob(f'{path}/**/*.[eE][xX][eE]', recursive=True)
     metafunc.parametrize("archive_path", archives)
 
 
@@ -46,11 +46,15 @@ def pytest_generate_tests(metafunc):
 def test_archive_test(archive_path):
     metadict = _metadict_from_path(archive_path)
     pwd = metadict.get('pw', None)
-    with acefile.open(archive_path) as f:
+    encoding = metadict.get('encoding', 'utf-8')
+    filenamecontains = metadict.get('filenamecontains', None)
+    with acefile.open(archive_path, encoding=encoding) as f:
         for member in f:
             if member.is_dir():
                 continue
             assert f.test(member, pwd=pwd)
+            if filenamecontains is not None:
+                assert filenamecontains in member.filename
 
 
 
