@@ -1,5 +1,6 @@
-### Unreleased
+### acefile 0.6.15-dev
 
+-   Add twine to dev requirements.
 -   Decode archive member filenames as CP850 by default and allow callers to
     select a different filename encoding.
 
