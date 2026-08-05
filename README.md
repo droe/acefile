@@ -83,6 +83,13 @@ In-memory decompression of a specific archive member:
     with acefile.open(filelike) as f:
         data = f.read('example.txt')
 
+ACE filenames are stored using an OEM code page and are decoded as CP850 by
+default.  For archives created with another code page or a non-standard UTF-8
+filename, pass its Python codec name explicitly:
+
+    with acefile.open('example.ace', encoding='cp437') as f:
+        f.extractall()
+
 Handle archives potentially containing large members in chunks to avoid fully
 reading them into memory:
 

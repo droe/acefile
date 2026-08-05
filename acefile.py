@@ -2807,7 +2807,7 @@ class AceMember:
     TRANSLATION_TAB = str.maketrans(dict.fromkeys(RESERVED_CHARS))
 
     @staticmethod
-    def _sanitize_filename(filename):
+    def _sanitize_filename(filename, encoding='cp850'):
         """
         Decode and sanitize filename for security and platform independence.
         Returns either a sanitized relative path, or an empty string.
@@ -2843,8 +2843,12 @@ class AceMember:
         ''
         >>> AceMember._sanitize_filename(b'c:\\\\c:\\\\CVE-2018-20250\\\\p.lnk').replace('\\\\', '/')
         'c/c/CVE-2018-20250/p.lnk'
+        >>> AceMember._sanitize_filename('À.txt'.encode('cp850'))
+        'À.txt'
+        >>> AceMember._sanitize_filename('café.txt'.encode('utf-8'), encoding='utf-8')
+        'café.txt'
         """
-        filename = filename.decode('utf-8', errors='replace')
+        filename = filename.decode(encoding, errors='replace')
         # treat null byte as filename terminator
         nullbyte = filename.find(chr(0))
         if nullbyte >= 0:
@@ -2873,7 +2877,7 @@ class AceMember:
             return '_' + filename
         return filename
 
-    def __init__(self, idx, filehdrs, f):
+    def __init__(self, idx, filehdrs, f, *, encoding='cp850'):
         """
         Initialize an :class:`AceMember` object with index within archive *idx*,
         initial file header *filehdr* and underlying file-like object *f*.
@@ -2891,7 +2895,8 @@ class AceMember:
         self.__dicsizebits  = (filehdrs[0].params & 15) + 10
         self.__dicsize      = 1 << self.__dicsizebits
         self.__raw_filename = filehdrs[0].filename
-        self.__filename     = self._sanitize_filename(filehdrs[0].filename)
+        self.__filename     = self._sanitize_filename(filehdrs[0].filename,
+                                                       encoding=encoding)
         if self.__filename == '':
             self.__filename = 'file%04i' % self._idx
         self.__ntsecurity   = filehdrs[0].ntsecurity
@@ -3419,7 +3424,7 @@ class AceArchive:
     """
 
     @classmethod
-    def _open(cls, file, mode='r', *, search=524288):
+    def _open(cls, file, mode='r', *, search=524288, encoding='cp850'):
         """
         Open archive from *file*, which is either a filename or seekable
         file-like object, and return an instance of :class:`AceArchive`
@@ -3432,6 +3437,9 @@ class AceArchive:
         For 1:1 compatibility with the official unace, 1024 sectors are
         searched by default, even though none of the SFX stubs that come with
         ACE compressors are that large.
+        Member filenames are decoded from the OEM code page *encoding*, which
+        defaults to CP850.  Pass a different codec name for archives created
+        with another OEM code page or a non-standard encoding such as UTF-8.
 
         Multi-volume archives are represented by a single :class:`AceArchive`
         object to the caller, all operations transparently read into subsequent
@@ -3440,9 +3448,9 @@ class AceArchive:
         series by filename, or provide a list or tuple of all file-like
         objects or filenames in the correct order in *file*.
         """
-        return cls(file, mode, search=search)
+        return cls(file, mode, search=search, encoding=encoding)
 
-    def __init__(self, file, mode='r', *, search=524288):
+    def __init__(self, file, mode='r', *, search=524288, encoding='cp850'):
         """
         See :meth:`AceArchive._open`.
         """
@@ -3510,7 +3518,8 @@ class AceArchive:
                         else:
                             f = segments[0]
                         self.__members.append(AceMember(len(self.__members),
-                                                        headers, f))
+                                                        headers, f,
+                                                        encoding=encoding))
                         headers = []
                         segments = []
 
@@ -4091,6 +4100,8 @@ def unace():
             help='base directory for extraction')
     parser.add_argument('-p', '--password', type=str, metavar='X',
             help='password for decryption')
+    parser.add_argument('--encoding', type=str, default='cp850', metavar='X',
+            help='archive filename encoding (default: cp850)')
     parser.add_argument('-r', '--restore', action='store_true',
             help='restore mtime/atime, attribs and ntsecurity on extraction')
     parser.add_argument('-b', '--batch', action='store_true',
@@ -4131,7 +4142,7 @@ def unace():
         archive = args.archive
 
     try:
-        with open(archive) as f:
+        with open(archive, encoding=args.encoding) as f:
             if args.verbose:
                 if acebitstream == None:
                     eprint(("warning: acebitstream c extension unavailable, "
