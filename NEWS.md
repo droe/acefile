@@ -1,3 +1,8 @@
+### acefile 0.6.15-dev
+
+-   Add twine to dev requirements.
+
+
 ### acefile 0.6.14 2026-01-21
 
 -   Experimental support for free-threaded Python.
