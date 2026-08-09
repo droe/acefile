@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import glob
+import hashlib
 import os
 import re
 import sys
@@ -39,7 +40,12 @@ def pytest_generate_tests(metafunc):
         if os.path.exists(path):
             archives += glob.glob(f'{path}/**/*.[aA][cC][eE]', recursive=True)
             archives += glob.glob(f'{path}/**/*.[eE][xX][eE]', recursive=True)
-    metafunc.parametrize("archive_path", archives)
+    hashmap = {}
+    for path in archives:
+        with open(path, 'rb') as f:
+            digest = hashlib.file_digest(f, 'sha256')
+        hashmap[digest] = path
+    metafunc.parametrize("archive_path", hashmap.values())
 
 
 
