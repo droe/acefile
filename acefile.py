@@ -240,34 +240,21 @@ def c_sum32(*args):
 
 
 
-def asciibox(msg, title=None, minwidth=None):
+def untrusted_string(msg):
     """
-    Returns message string *msg* wrapped in a plain ASCII box.
-    If *title* is given, add *title* in the top horizontal bar.
-    Lines will be padded to the longest out of *minwidth* characters, the
-    length of the longest line, or the length of the title plus six.
-    Caller is responsible for ensuring a sensible line length in *msg*.
+    Process an untrusted string from an archive before outputting it to stderr
+    or stdout.  For now, do not attempt to filter ANSI sequences, but at least
+    follow up with a reset in case any escape sequences were in msg.  This
+    matches unace behaviour.
+
+    >>> untrusted_string("foo")
+    'foo'
+    >>> untrusted_string("\\x1b[1;31mfoo")
+    '\\x1b[1;31mfoo\\x1b[0m'
     """
-    out = []
-    lines = msg.splitlines()
-    width = 0
-    for line in lines:
-        width = max(width, len(line))
-    if minwidth != None:
-        width = max(width, minwidth)
-    if title != None:
-        width = max(width, len(title) + 6)
-    ftr = "+" + ("-" * (width + 2)) + "+"
-    if title != None:
-        hdr = ("+--[ %s ]--" % title) + ("-" * (width - 6 - len(title))) + "+"
-    else:
-        hdr = ftr
-    fmt = "| %%-%is |" % width
-    out.append(hdr)
-    for line in msg.splitlines():
-        out.append(fmt % line)
-    out.append(ftr)
-    return '\n'.join(out)
+    if '\x1b' in msg:
+        return msg + '\x1b[0m'
+    return msg
 
 
 
@@ -4179,13 +4166,15 @@ def unace():
                 eprint("created on %s with ACE %s for extraction with %s+" % (
                        f.platform, f.cversion/10, f.eversion/10))
                 if f.advert:
-                    eprint("advert [%s]" % f.advert)
+                    eprint(f"advert: {untrusted_string(f.advert)}")
 
                 if f.is_multivolume() and f.volume > 0:
                     eprint("warning: this is not the initial volume of this "
                            "multi-volume archive")
                 if f.comment:
-                    eprint(asciibox(f.comment, title='archive comment'))
+                    eprint("--- Archive comment:")
+                    eprint(untrusted_string(f.comment))
+                    eprint("---")
 
             if args.mode == 'extract':
                 if f.is_multivolume() and f.volume > 0 and f.is_solid():
@@ -4239,7 +4228,9 @@ def unace():
                         eprint("error extracting from solid archive, aborting")
                         sys.exit(1)
                     if args.verbose and am.comment:
-                        eprint(asciibox(am.comment, title='file comment'))
+                        eprint("--- File comment:")
+                        eprint(untrusted_string(am.comment))
+                        eprint("---")
                 if failed > 0:
                     sys.exit(1)
 
@@ -4290,7 +4281,9 @@ def unace():
                                 failed += 1
                                 break
                     if args.verbose and am.comment:
-                        eprint(asciibox(am.comment, title='file comment'))
+                        eprint("--- File comment:")
+                        eprint(untrusted_string(am.comment))
+                        eprint("---")
                 eprint("total %i tested, %i ok, %i failed" % (
                        ok + failed, ok, failed))
                 if failed > 0:
@@ -4328,7 +4321,9 @@ def unace():
                             am.datetime.strftime('%Y-%m-%d %H:%M:%S'),
                             am.filename))
                         if am.comment:
-                            eprint(asciibox(am.comment, title='file comment'))
+                            eprint("--- File comment:")
+                            eprint(untrusted_string(am.comment))
+                            eprint("---")
                         count_size += am.size
                         count_packsize += am.packsize
                         count += 1
