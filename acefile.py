@@ -3219,7 +3219,10 @@ class AceVolume:
             header.datetime = struct.unpack('<BBBBL', buf[10:18])
             header.reserved1 = buf[18:26]
             i = 26
-            # Read advert regardless of whether FLAG_ADVERT is set.
+
+            # Read advert regardless of whether FLAG_ADVERT is set.  This is
+            # contrary to the ACE 1.2 tech spec but seems to be correct based
+            # on other implementations and the test archive corpus.
             if i + 1 > len(buf):
                 raise CorruptedArchiveError("truncated header")
             avsz, = struct.unpack('<B', buf[i:i+1])
@@ -3232,6 +3235,7 @@ class AceVolume:
                 raise CorruptedArchiveError("advert size is 0 but FLAG_ADVERT is set")
             if (not header.flag(Header.FLAG_ADVERT)) and (avsz > 0):
                 raise CorruptedArchiveError(f"advert size is {avsz} but FLAG_ADVERT is not set")
+
             if header.flag(Header.FLAG_COMMENT):
                 if i + 2 > len(buf):
                     raise CorruptedArchiveError("truncated header")
