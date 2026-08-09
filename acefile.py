@@ -3184,6 +3184,10 @@ class AceVolume:
                     self._parse_header()
                     break
                 except CorruptedArchiveError:
+                    if DEBUG:
+                        # In rare cases where the sfx stub contains
+                        # "***ACE***", this could lead to early aborts.
+                        raise
                     continue
         while self.__file.tell() < self.__filesize:
             self._parse_header()
