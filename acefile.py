@@ -3061,7 +3061,7 @@ class AceVolume:
                 raise TypeError("file must be filename or "
                                 "seekable file-like object")
             self.__file = file
-            self.__filename = '-'
+            self.__filename = None
         self.__file.seek(0, os.SEEK_END)
         self.__filesize = self.__file.tell()
         self.__main_header = None
@@ -3094,7 +3094,7 @@ class AceVolume:
     filename    %s
     filesize    %i
     headers     MAIN:1 FILE:%i RECOVERY:%i others:%i""" % (
-                self.__filename,
+                self.__filename or '-',
                 self.__filesize,
                 len(self.__file_headers),
                 len(self.__recovery_headers),
@@ -3121,6 +3121,8 @@ class AceVolume:
         Returns the derived filename in two variants, upper and lower case,
         to allow for finding the file on fully case-sensitive filesystems.
         """
+        if self.__filename is None:
+            return ()
         base, ext = os.path.splitext(self.__filename)
         ext = ext.lower()
         if ext[:2] == '.c':
@@ -3419,6 +3421,14 @@ class AceVolume:
     def volume(self):
         return self.__main_header.volume
 
+    def __str__(self):
+        return (f"{self.filename or '-'}"
+                f" volume {self.volume}"
+                f" cversion {self.cversion}"
+                f" eversion {self.eversion}"
+                f" platform {self.platform}"
+                f" datetime {self.datetime}")
+
 
 
 class AceArchive:
@@ -3493,6 +3503,11 @@ class AceArchive:
                         if not vol:
                             break
                         self.__volumes.append(vol)
+
+            if DEBUG:
+                eprint(f"{len(self.__volumes)} volumes:")
+                for vol in self.__volumes:
+                    eprint(vol)
 
             # check volume linkage
             if len(self.__volumes) > 1:
