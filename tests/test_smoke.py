@@ -41,11 +41,19 @@ def pytest_generate_tests(metafunc):
             archives += glob.glob(f'{path}/**/*.[aA][cC][eE]', recursive=True)
             archives += glob.glob(f'{path}/**/*.[eE][xX][eE]', recursive=True)
     hashmap = {}
-    for path in archives:
-        with open(path, 'rb') as f:
-            digest = hashlib.file_digest(f, 'sha256')
-        hashmap[digest] = path
-    metafunc.parametrize("archive_path", hashmap.values())
+    try:
+        for path in archives:
+            with open(path, 'rb') as f:
+                digest = hashlib.file_digest(f, 'sha256')
+            hashmap[digest] = path
+        archives = hashmap.values()
+    except AttributeError:
+        # AttributeError: module 'hashlib' has no attribute 'file_digest'
+        # file_digest introduced in Python 3.11, but we still support 3.10.
+        # Removal of duplicates is not important in CI/CD testing, so just
+        # skip deduplication.
+        pass
+    metafunc.parametrize("archive_path", archives)
 
 
 
