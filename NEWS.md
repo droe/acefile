@@ -6,9 +6,12 @@
 -   Fix issue where archives without advert string, but with archive-level
     comment, failed to test or decompress (discovered thanks to @bitplane
     additions to the test corpus).
--   Allow callers to select the appropriate code page for decoding paths,
-    filenames and comments, and encoding the password for decryption, leaving
-    the default at utf-8 (pull req #19, @bitplane).
+-   Add `--encoding`:  Allow callers to select the appropriate code page for
+    decoding paths, filenames and comments, and encoding the password for
+    decryption, leaving the default at utf-8 (pull req #19, @bitplane).
+-   Add `--strict-multivolume`:  Allow opting into stricter checking of
+    multi-volume archives where by default, we permit operations on incomplete
+    sets of volumes as far as they are technically possible.
 -   Add twine to dev requirements.
 
 

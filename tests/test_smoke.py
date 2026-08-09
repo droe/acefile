@@ -61,8 +61,13 @@ def test_archive_test(archive_path):
     metadict = _metadict_from_path(archive_path)
     pwd = metadict.get('pw', None)
     encoding = metadict.get('encoding', 'utf-8')
+    # Disable strict multi-volume for discmaster corpus because we are missing a lot of c00, c01 etc.
+    strict_multivolume = metadict.get('strictmultivolume', '/discmaster/' not in archive_path)
+    if isinstance(strict_multivolume, str):
+        strict_multivolume = strict_multivolume not in ("False", "0", "no")
+    assert isinstance(strict_multivolume, bool)
     filenamecontains = metadict.get('filenamecontains', None)
-    with acefile.open(archive_path, encoding=encoding) as f:
+    with acefile.open(archive_path, encoding=encoding, strict_multivolume=strict_multivolume) as f:
         for member in f:
             if member.is_dir():
                 continue

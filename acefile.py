@@ -3445,7 +3445,7 @@ class AceArchive:
     """
 
     @classmethod
-    def _open(cls, file, mode='r', *, search=524288, encoding='utf-8'):
+    def _open(cls, file, mode='r', *, search=524288, encoding='utf-8', strict_multivolume=False):
         """
         Open archive from *file*, which is either a filename or seekable
         file-like object, and return an instance of :class:`AceArchive`
@@ -3467,12 +3467,13 @@ class AceArchive:
         object to the caller, all operations transparently read into subsequent
         volumes as required.
         To load a multi-volume archive, either open the first volume of the
-        series by filename, or provide a list or tuple of all file-like
+        series by filename, in which case subsequent files will be looked for
+        by name, or provide a list or tuple of all file-like
         objects or filenames in the correct order in *file*.
         """
-        return cls(file, mode, search=search, encoding=encoding)
+        return cls(file, mode, search=search, encoding=encoding, strict_multivolume=strict_multivolume)
 
-    def __init__(self, file, mode='r', *, search=524288, encoding='utf-8'):
+    def __init__(self, file, mode='r', *, search=524288, encoding='utf-8', strict_multivolume=False):
         """
         See :meth:`AceArchive._open`.
         """
@@ -3511,13 +3512,25 @@ class AceArchive:
 
             # check volume linkage
             if len(self.__volumes) > 1:
-                last_volume = None
-                for vol in self.__volumes:
+                if strict_multivolume:
+                    vol = self.__volumes[0]
+                    if vol.volume != 0:
+                        raise MultiVolumeArchiveError(f"strict multi-volume: first volume must be volume 0, not {vol.volume}")
+                    del vol
+                previous_volume = None
+                for i, vol in enumerate(self.__volumes):
                     if not vol.is_multivolume():
-                        raise MultiVolumeArchiveError("single-volume archive")
-                    if last_volume != None and vol.volume != last_volume + 1:
-                        raise MultiVolumeArchiveError("volumes do not match")
-                    last_volume = vol.volume
+                        raise MultiVolumeArchiveError(f"volume {vol.volume} is single-volume archive, expected multi-volume")
+                    if previous_volume != None and vol.volume != previous_volume + 1:
+                        raise MultiVolumeArchiveError(f"volume {vol.volume} follows volume {previous_volume}")
+                    previous_volume = vol.volume
+            else:
+                assert len(self.__volumes) == 1
+                if strict_multivolume:
+                    vol = self.__volumes[0]
+                    if vol.is_multivolume():
+                        raise MultiVolumeArchiveError(f"strict multi-volume: archive is multi-volume but we only have volume {vol.volume}")
+                    del vol
 
             # build list of members and their file segments across volumes
             self.__members = []
@@ -3526,18 +3539,20 @@ class AceArchive:
             for volume in self.__volumes:
                 for hdr in volume.get_file_headers():
                     if len(headers) == 0:
+                        # starting a new member
                         if hdr.flag(Header.FLAG_CONTPREV):
-                            if len(self.__members) > 0:
-                                raise MultiVolumeArchiveError("incomplete file")
+                            if len(self.__members) > 0 or strict_multivolume:
+                                raise MultiVolumeArchiveError("incomplete first archive member of volume")
                             # don't raise an error if this is the first file
                             # in the first volume, to allow opening subsequent
                             # volumes of multi-volume archives separately
                             continue
                     else:
+                        # continuing a partial previous member
                         if not hdr.flag(Header.FLAG_CONTPREV):
-                            raise MultiVolumeArchiveError("unexpected new file")
+                            raise MultiVolumeArchiveError("start of new archive member after incomplete previous member")
                         if hdr.filename != headers[-1].filename:
-                            raise MultiVolumeArchiveError("filename mismatch")
+                            raise MultiVolumeArchiveError("filename mismatch for member continuation")
                     headers.append(hdr)
                     segments.append(volume.file_segment_for(hdr))
                     if not hdr.flag(Header.FLAG_CONTNEXT):
@@ -3550,6 +3565,9 @@ class AceArchive:
                                                         encoding=encoding))
                         headers = []
                         segments = []
+
+            if strict_multivolume and (len(headers) > 0 or len(segments) > 0):
+                raise MultiVolumeArchiveError("strict multi-volume: incomplete last archive member")
 
             self.__next_read_idx = 0
             self.__ace = ACE()
@@ -4130,6 +4148,8 @@ def unace():
             help='password for decryption')
     parser.add_argument('--encoding', type=str, default='utf-8', metavar='X',
             help='archive filename and comment encoding (default: utf-8)')
+    parser.add_argument('--strict-multivolume', action='store_true',
+            help='refuse to work on incomplete multivolume archives')
     parser.add_argument('-r', '--restore', action='store_true',
             help='restore mtime/atime, attribs and ntsecurity on extraction')
     parser.add_argument('-b', '--batch', action='store_true',
@@ -4168,7 +4188,7 @@ def unace():
         archive = args.archive
 
     try:
-        with open(archive, encoding=args.encoding) as f:
+        with open(archive, encoding=args.encoding, strict_multivolume=args.strict_multivolume) as f:
             if args.verbose:
                 if acebitstream == None:
                     eprint(("warning: acebitstream c extension unavailable, "
