@@ -1199,8 +1199,8 @@ class AceMode:
             mode.delta_len = bs.read_bits(17)
         elif mode.mode == ACE.MODE_LZ77_EXE:
             mode.exe_mode = bs.read_bits(8)
-        if DEBUG:
-            eprint(mode)
+        #if DEBUG:
+        #    eprint(mode)
         return mode
 
     def __init__(self, mode):
@@ -1509,7 +1509,7 @@ class LZ77:
             """
             source_pos = len(self.__dicdata) - dist
             if source_pos < 0:
-                raise CorruptedArchiveError("LZ77 copy src out of bounds")
+                raise CorruptedArchiveError(f"LZ77 copy src out of bounds ({dist=} {n=} {source_pos=} {len(self.__dicdata)=})")
             # copy needs to be byte-wise for overlapping src and dst
             for i in range(source_pos, source_pos + n):
                 self.__dicdata.append(self.__dicdata[i])
@@ -2270,6 +2270,9 @@ class ACE:
                 mode = next_mode
                 next_mode = None
 
+            if DEBUG:
+                eprint(f"block at {producedsize}/{filesize}: {mode}")
+
             outchunk = []
             if mode.mode == ACE.MODE_LZ77_DELTA:
                 # Preprocessor that rearranges chunks of data and calculates
@@ -3029,10 +3032,10 @@ class AceMember:
         return self.__size
 
     def __str__(self):
-        return "member idx %i sz %i/%i type %i qual %i: %s" % (
-                self._idx, self.packsize, self.size,
-                self.comptype, self.compqual,
-                self.filename)
+        return (f"member idx {self._idx} sz {self.packsize}/{self.size}"
+                f" type {self.comptype} ({self._headers[0].comptype_str})"
+                f" qual {self.compqual} ({self._headers[0].compqual_str}):"
+                f" {self.filename}")
 
 
 
