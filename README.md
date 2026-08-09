@@ -142,6 +142,17 @@ integration tests are currently not useful without any test archives though.
     git clone https://github.com/droe/acefile-testdata.git ../acefile-testdata
     pytest -v
 
+The author's private test corpus consists of ~ 4500 ACE archives, the bulk of
+which from the following sources:
+
+-   [Discmaster / Archive.org](https://discmaster.textfiles.com/)
+-   [Morrowind ModHistory](http://mw.modhistory.com/) (offline)
+-   [Sembiance file format samples](https://sembiance.com/fileFormatSamples/archive/ace/)
+-   VirusTotal retrohunt from 2019
+
+If you are aware of other corpora of ACE archives, please open an issue on
+GitHub so that they can be incorporated into testing too.
+
 
 ## Credits
 
