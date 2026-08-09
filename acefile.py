@@ -2821,6 +2821,10 @@ class AceMember:
         'etc/passwd'
         >>> AceMember._sanitize_filename(b'.././.././.././.././../etc/passwd').replace('\\\\', '/')
         'etc/passwd'
+        >>> AceMember._sanitize_filename(b'../../../../../../../tmp/unace-dir-traversal').replace('\\\\', '/')
+        'tmp/unace-dir-traversal'
+        >>> AceMember._sanitize_filename(b'/tmp/unace-dir-traversal').replace('\\\\', '/')
+        'tmp/unace-dir-traversal'
         >>> AceMember._sanitize_filename(b'C:\\\\Windows\\\\foo.exe').replace('\\\\', '/')
         'C/Windows/foo.exe'
         >>> AceMember._sanitize_filename(b'\\\\\\\\server\\\\share\\\\file').replace('\\\\', '/')
