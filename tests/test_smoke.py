@@ -22,7 +22,7 @@ def _metadict_from_path(path):
     {'foo': 'oof', 'bar': 'baz', 'qux': 'quux'}
     """
     metadict = {}
-    for m in re.finditer(r'([a-zA-Z0-9]+)=([a-zA-Z0-9]+)', path):
+    for m in re.finditer(r'([a-zA-Z0-9]+)=([^.,;:=+/_-]+)', path):
         metadict[m.group(1)] = m.group(2)
     return metadict
 
