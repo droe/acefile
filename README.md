@@ -148,6 +148,7 @@ which from the following sources:
 -   [Discmaster / Archive.org](https://discmaster.textfiles.com/)
 -   [Morrowind ModHistory](http://mw.modhistory.com/) (offline)
 -   [Sembiance file format samples](https://sembiance.com/fileFormatSamples/archive/ace/)
+-   [wdlkmpx/unace1](https://github.com/wdlkmpx/unace1) (unace 1.2b fork)
 -   VirusTotal retrohunt from 2019
 
 If you are aware of other corpora of ACE archives, please open an issue on
