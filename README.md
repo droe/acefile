@@ -9,7 +9,7 @@ https://www.roe.ch/acefile
 
     # python library
     import acefile
-    with acefile.open('example.ace') as f:
+    with acefile.open('example.ace', encoding='cp850') as f:
         f.extractall()
 
     # unace utility
@@ -110,15 +110,15 @@ description of the API.
 
 Extract all files in the archive, with directories, to current working dir:
 
-    acefile-unace -x example.ace
+    acefile-unace -x --encoding cp850 example.ace
 
 Test all files in the archive, verbosely:
 
-    acefile-unace -tv example.ace
+    acefile-unace -tv --encoding cp850 example.ace
 
 List archive contents, verbosely:
 
-    acefile-unace -lv example.ace
+    acefile-unace -lv --encoding cp850 example.ace
 
 Check usage for more functionality:
 
