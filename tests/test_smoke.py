@@ -31,12 +31,17 @@ def _metadict_from_path(path):
 
 def pytest_generate_tests(metafunc):
     archives = []
-    here = os.path.dirname(os.path.abspath(__file__))
-    subdirs = ['acefile-testdata']
-    if not metafunc.config.getoption("fast"):
-        subdirs.append('acefile-testdata-private')
-    for subdir in subdirs:
-        path = os.path.realpath(f'{here}/../../{subdir}')
+
+    if (limit_dir := metafunc.config.getoption("--limit")) is not None:
+        testdirs = [limit_dir]
+    else:
+        testdirs = ['acefile-testdata']
+        if not metafunc.config.getoption("--fast"):
+            testdirs.append('acefile-testdata-private')
+        here = os.path.dirname(os.path.abspath(__file__))
+        testdirs = map(lambda testdir: os.path.realpath(f"{here}/../../{testdir}"), testdirs)
+
+    for path in testdirs:
         if os.path.exists(path):
             archives += glob.glob(f'{path}/**/*.[aA][cC][eE]', recursive=True)
             archives += glob.glob(f'{path}/**/*.[eE][xX][eE]', recursive=True)
