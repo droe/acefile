@@ -1539,9 +1539,11 @@ class LZ77:
             return chunk
 
         def _truncate(self):
-            # only perform actual truncation when dictionary exceeds 4 times
-            # it's supposed size in order to prevent excessive data copying
-            if len(self.__dicdata) > 4 * self.__dicsize:
+            # Only perform actual truncation when dictionary exceeds n times
+            # it's supposed size in order to prevent excessive data copying.
+            # Also, turns out that discmaster 37455/data21.ace requires the
+            # factor n to be at least 6.  Never dug to the bottom of this.
+            if len(self.__dicdata) > 8 * self.__dicsize:
                 self.__dicdata = self.__dicdata[-self.__dicsize:]
 
 

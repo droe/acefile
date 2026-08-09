@@ -1,5 +1,8 @@
 ### acefile 0.6.15-dev
 
+-   Fix issue where LZ77 decompression would copy more bytes from the LZ77
+    dictionary than are present after truncation to max dictionary size
+    (discovered thanks to @bitplane additions to the test corpus).
 -   Fix issue where archives without advert string, but with archive-level
     comment, failed to test or decompress (discovered thanks to @bitplane
     additions to the test corpus).
