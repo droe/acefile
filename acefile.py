@@ -4126,9 +4126,7 @@ def unace():
     args = parser.parse_args()
 
     if args.mode != 'extract' and len(args.file) > 0:
-        eprint("%s: error: not extracting, but files were specified" %
-               os.path.basename(sys.argv[0]))
-        sys.exit(1)
+        parser.error("not extracting, but files were specified")
 
     if args.debug:
         global DEBUG
