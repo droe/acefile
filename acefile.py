@@ -3226,13 +3226,19 @@ class AceVolume:
             header.reserved1 = buf[18:26]
             i = 26
 
-            # Read advert regardless of whether FLAG_ADVERT is set.  This is
-            # contrary to the ACE 1.2 tech spec but seems to be correct based
-            # on other implementations and the test archive corpus.
-            if i + 1 > len(buf):
-                raise CorruptedArchiveError("truncated header")
-            avsz, = struct.unpack('<B', buf[i:i+1])
-            i += 1
+            # Some archives omit the unflagged advert-size byte.  Accept that
+            # layout only when the comment fills the remaining header.  Keep
+            # the zero advert-size byte when both layouts fit.
+            avsz = 0
+            if not (not header.flag(Header.FLAG_ADVERT)
+                    and header.flag(Header.FLAG_COMMENT) and i + 2 <= len(buf)
+                    and i + 2 + struct.unpack('<H', buf[i:i+2])[0] == len(buf)
+                    and not (buf[i] == 0 and i + 3 <= len(buf)
+                             and i + 3 + struct.unpack('<H', buf[i+1:i+3])[0] <= len(buf))):
+                if i + 1 > len(buf):
+                    raise CorruptedArchiveError("truncated header")
+                avsz, = struct.unpack('<B', buf[i:i+1])
+                i += 1
             if i + avsz > len(buf):
                 raise CorruptedArchiveError("truncated header")
             header.advert = buf[i:i+avsz]
