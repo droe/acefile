@@ -4091,6 +4091,9 @@ __all__.extend(filter(lambda name: name.endswith('Error'),
 
 
 def unace():
+    if os.name == 'nt':
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
     import argparse
     import getpass
     import signal
